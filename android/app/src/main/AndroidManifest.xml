@@ -2,6 +2,12 @@
     package="com.uglyduckling.autocall">
     <!-- 电话权限 -->
     <uses-permission android:name="android.permission.CALL_PHONE" />
+    <!-- 读取 SIM / 通话状态（双卡拨号必需） -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <!-- 通话记录（判断接通/未接、通话时长） -->
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <!-- 自动发短信（后续阶段使用） -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
     <!-- 网络权限 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- 通知权限 (Android 13+) -->

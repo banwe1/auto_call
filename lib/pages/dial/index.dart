@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../viewmodels/CallStatsProvider.dart';
 import '../../utils/CallUtils.dart';
 import '../../constants/AppConstants.dart';
+import '../../components/CommonToast.dart';
 import '../../components/CustomAppBar.dart';
+import '../../components/DialStatusBar.dart';
+import '../../services/DialChannel.dart';
 import '../import/ImportPage.dart';
 
 /// 自动拨号主页面
@@ -47,6 +50,7 @@ class DialPage extends ConsumerWidget {
             ),
           ),
           const Divider(),
+          const DialStatusBar(),
           // 列表区域（目前为占位图）
           Expanded(
             child: Center(
@@ -126,39 +130,122 @@ class DialPage extends ConsumerWidget {
     );
   }
 
-  /// 显示手动拨号弹窗
+  /// 显示手动拨号弹窗（支持选择双卡）
   void _showManualDial(BuildContext context, WidgetRef ref) {
-    final controller = TextEditingController();
-    showDialog(
+    final TextEditingController controller = TextEditingController();
+    int? selectedSubscriptionId;
+
+    showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(AppConstants.LABEL_MANUAL_DIAL),
-        content: TextField(
-          controller: controller,
-          decoration:
-              const InputDecoration(hintText: AppConstants.HINT_INPUT_PHONE),
-          keyboardType: TextInputType.phone,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(AppConstants.BTN_CANCEL),
-          ),
-          TextButton(
-            onPressed: () {
-              final number = controller.text.trim();
-              if (number.isNotEmpty) {
-                // 更新统计并拨号
-                ref.read(callStatsProvider.notifier).addDialed();
-                CallUtils.makeCall(context, number);
-                Navigator.pop(context);
-              }
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text(AppConstants.LABEL_MANUAL_DIAL),
+          content: FutureBuilder<List<SimInfo>>(
+            future: DialChannel.listSims(),
+            builder: (
+              BuildContext context,
+              AsyncSnapshot<List<SimInfo>> snapshot,
+            ) {
+              final List<SimInfo> sims = snapshot.data ?? const <SimInfo>[];
+              return StatefulBuilder(
+                builder: (BuildContext context, StateSetter setLocalState) {
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      TextField(
+                        controller: controller,
+                        decoration: const InputDecoration(
+                          hintText: AppConstants.HINT_INPUT_PHONE,
+                        ),
+                        keyboardType: TextInputType.phone,
+                      ),
+                      if (sims.isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 12),
+                        Row(
+                          children: <Widget>[
+                            const Text('拨号卡：',
+                                style: TextStyle(fontSize: 13)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: DropdownButton<int?>(
+                                isExpanded: true,
+                                value: selectedSubscriptionId,
+                                items: <DropdownMenuItem<int?>>[
+                                  const DropdownMenuItem<int?>(
+                                    value: null,
+                                    child: Text('跟随系统'),
+                                  ),
+                                  ...sims.map(
+                                    (SimInfo sim) => DropdownMenuItem<int?>(
+                                      value: sim.subscriptionId,
+                                      child: Text(
+                                        sim.label,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                                onChanged: (int? value) => setLocalState(
+                                  () => selectedSubscriptionId = value,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  );
+                },
+              );
             },
-            child: const Text(AppConstants.BTN_DIAL),
           ),
-        ],
-      ),
-    );
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text(AppConstants.BTN_CANCEL),
+            ),
+            TextButton(
+              onPressed: () async {
+                final String number = controller.text.trim();
+                if (number.isEmpty) return;
+                final int? subId = selectedSubscriptionId;
+                Navigator.pop(dialogContext);
+                ref.read(callStatsProvider.notifier).addDialed();
+                await _dialWithSim(context, number, subId);
+              },
+              child: const Text(AppConstants.BTN_DIAL),
+            ),
+          ],
+        );
+      },
+    ).whenComplete(controller.dispose);
+  }
+
+  /// 使用原生通道拨号（可指定 SIM），失败时回退系统拨号盘
+  Future<void> _dialWithSim(
+    BuildContext context,
+    String number,
+    int? subscriptionId,
+  ) async {
+    try {
+      bool granted = await DialChannel.hasPermissions();
+      if (!granted) {
+        granted = await DialChannel.requestPermissions();
+      }
+      if (!granted) {
+        if (context.mounted) {
+          CommonToast.show('未授予电话权限，已打开系统拨号盘', context: context);
+        }
+        await CallUtils.makeCall(context, number);
+        return;
+      }
+      await DialChannel.dial(number, subscriptionId: subscriptionId);
+    } catch (e) {
+      if (context.mounted) {
+        CommonToast.error('原生拨号失败，已回退系统拨号：$e', context: context);
+        await CallUtils.makeCall(context, number);
+      }
+    }
   }
 
   /// 打开号码导入页
