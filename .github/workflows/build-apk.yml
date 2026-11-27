@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - master
+      - 'feature/**'
 
 permissions:
   contents: write
@@ -47,6 +48,14 @@ jobs:
       # 缓存 Gradle 依赖，二次构建会快很多
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
+
+      # 固定 debug 签名（缓存 AGP 自动生成的 debug.keystore）：
+      # 这样后续构建签名一致，可直接覆盖安装，不必每次卸载重装
+      - name: Cache debug keystore (stable signature)
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-v1
 
       - name: Show toolchain versions
         run: |
@@ -103,10 +112,31 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      # 版本号取自 pubspec.yaml（自动去掉 +build 后缀）
+      - name: Read app version
+        id: appver
+        run: |
+          set -e
+          VERSION=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//' | cut -d'+' -f1 | tr -d '\r' | xargs)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Detected version: $VERSION"
+
       # 只构建真机所需的两个 ABI（arm64-v8a 覆盖几乎所有现代手机，armeabi-v7a 兼容老机型），
       # 跳过仅用于模拟器的 x86_64，显著缩短编译时间。
       - name: Build release APK
         run: flutter build apk --release --target-platform android-arm,android-arm64
+
+      # 产物重命名为中文名：正式包 自动拨号v0.2.0.apk，测试包带 dev 后缀
+      - name: Rename APK
+        run: |
+          set -e
+          VERSION="${{ steps.appver.outputs.version }}"
+          if [ "${{ github.ref }}" = "refs/heads/master" ]; then
+            NAME="自动拨号v${VERSION}.apk"
+          else
+            NAME="自动拨号v${VERSION}-dev-b${{ github.run_number }}.apk"
+          fi
+          mv "build/app/outputs/flutter-apk/app-release.apk" "build/app/outputs/flutter-apk/${NAME}"
 
       - name: List build output
         run: ls -lh build/app/outputs/flutter-apk/
@@ -119,24 +149,18 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # ---------------- 发布到 GitHub Releases（公开下载链接） ----------------
-      # tag / 标题取自 pubspec.yaml 的 version 字段，形如 v0.1.0
+      # ---------------- 发布到 GitHub Releases（仅 master 分支） ----------------
+      # tag / 标题取自 pubspec.yaml 的 version 字段，形如 v0.2.0
       # 固定下载页：https://github.com/banwe1/auto_call/releases/latest
-      - name: Read app version
-        id: appver
-        run: |
-          set -e
-          VERSION=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//' | cut -d'+' -f1 | tr -d '\r' | xargs)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Detected version: $VERSION"
-
       - name: Remove existing release for this version
+        if: github.ref == 'refs/heads/master'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.appver.outputs.version }}
         run: gh release delete "v$VERSION" --yes --cleanup-tag || true
 
       - name: Publish APK to GitHub Releases
+        if: github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.appver.outputs.version }}
