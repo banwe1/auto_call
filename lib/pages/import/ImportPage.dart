@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -37,11 +37,18 @@ class _ImportPageState extends ConsumerState<ImportPage> {
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      final PlatformFile? file = await FilePicker.pickFile(
-        dialogTitle: '选择号码文件（txt / csv）',
-        type: FileType.custom,
-        allowedExtensions: const <String>['txt', 'csv'],
+      const XTypeGroup group = XTypeGroup(
+        label: '号码文件',
+        extensions: <String>['txt', 'csv'],
+        mimeTypes: <String>[
+          'text/plain',
+          'text/csv',
+          'text/comma-separated-values',
+          'application/vnd.ms-excel',
+        ],
       );
+      final XFile? file =
+          await openFile(acceptedTypeGroups: <XTypeGroup>[group]);
       if (file == null) return;
 
       final Uint8List rawBytes = await file.readAsBytes();

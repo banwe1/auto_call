@@ -24,7 +24,7 @@ dependencies:
   flutter_foreground_task: ^9.2.1
   json_annotation: ^4.9.0
   fluwx: ^5.7.5
-  file_picker: ^13.4.1
+  file_selector: ^1.1.0
   charset_converter: ^2.3.0
 
 dev_dependencies:
