@@ -16,7 +16,13 @@ jobs:
   build-apk:
     name: Build release APK
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
+
+    env:
+      # 避免个别源响应慢导致长时间挂起
+      GRADLE_OPTS: >-
+        -Dorg.gradle.internal.http.connectionTimeout=20000
+        -Dorg.gradle.internal.http.socketTimeout=60000
 
     steps:
       - name: Checkout
@@ -37,6 +43,10 @@ jobs:
         with:
           flutter-version: '3.38.10'
           cache: true
+
+      # 缓存 Gradle 依赖，二次构建会快很多
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Show toolchain versions
         run: |
@@ -76,11 +86,27 @@ jobs:
             echo "Gradle wrapper already present."
           fi
 
+      # 仅本次 CI 生效（不提交回仓库）：
+      # - 用体积更小的 Gradle -bin 发行版
+      # - 去掉国内镜像 fallback，避免海外 runner 访问慢/超时
+      - name: Speed up CI-only Gradle settings
+        run: |
+          set -e
+          sed -i 's#gradle-8.14-all.zip#gradle-8.14-bin.zip#' android/gradle/wrapper/gradle-wrapper.properties
+          sed -i '/storage.flutter-io.cn/d' android/build.gradle.kts
+          sed -i '/maven.aliyun.com/d' android/build.gradle.kts
+          echo "--- gradle-wrapper.properties ---"
+          cat android/gradle/wrapper/gradle-wrapper.properties
+          echo "--- repositories in android/build.gradle.kts ---"
+          grep -n "maven\|google()\|mavenCentral()\|jitpack" android/build.gradle.kts || true
+
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Build release APK (split per ABI)
-        run: flutter build apk --release --split-per-abi
+      # 只构建真机所需的两个 ABI（arm64-v8a 覆盖几乎所有现代手机，armeabi-v7a 兼容老机型），
+      # 跳过仅用于模拟器的 x86_64，显著缩短编译时间。
+      - name: Build release APK
+        run: flutter build apk --release --target-platform android-arm,android-arm64
 
       - name: List build output
         run: ls -lh build/app/outputs/flutter-apk/
