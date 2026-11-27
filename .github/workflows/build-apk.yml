@@ -120,21 +120,31 @@ jobs:
           retention-days: 30
 
       # ---------------- 发布到 GitHub Releases（公开下载链接） ----------------
-      # 每次构建成功后，把 APK 挂到一个名为 latest 的 Release 上：
+      # tag / 标题取自 pubspec.yaml 的 version 字段，形如 v0.1.0
       # 固定下载页：https://github.com/banwe1/auto_call/releases/latest
-      - name: Remove previous "latest" release
+      - name: Read app version
+        id: appver
+        run: |
+          set -e
+          VERSION=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//' | cut -d'+' -f1 | tr -d '\r' | xargs)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Detected version: $VERSION"
+
+      - name: Remove existing release for this version
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release delete latest --yes --cleanup-tag || true
+          VERSION: ${{ steps.appver.outputs.version }}
+        run: gh release delete "v$VERSION" --yes --cleanup-tag || true
 
       - name: Publish APK to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest
-          name: 自动拨号 · 最新构建
+          tag_name: v${{ steps.appver.outputs.version }}
+          name: v${{ steps.appver.outputs.version }}
           body: |
             自动构建产物，可直接下载安装。
 
+            - 版本：v${{ steps.appver.outputs.version }}
             - 提交：${{ github.sha }}
             - 构建号：${{ github.run_number }}
             - Flutter：3.38.10
