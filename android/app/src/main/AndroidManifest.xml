@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
     <!-- 自动发短信（后续阶段使用） -->
     <uses-permission android:name="android.permission.SEND_SMS" />
+    <!-- 兜底：全屏通知拉起界面（Android 14+ 受限，仅作备用） -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <!-- 网络权限 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- 通知权限 (Android 13+) -->
@@ -72,6 +74,16 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/auto_dial_accessibility" />
+        </service>
+
+        <!-- 自动连拨前台服务（App 后台/锁屏也能继续拨） -->
+        <service
+            android:name=".AutoDialService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Automated continuous dialing service" />
         </service>
     </application>
     <!-- Required to query activities that can process text, see:

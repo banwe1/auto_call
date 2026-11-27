@@ -1,0 +1,360 @@
+package com.uglyduckling.autocall
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
+import androidx.core.app.NotificationCompat
+import io.flutter.plugin.common.EventChannel
+import org.json.JSONArray
+
+/**
+ * 自动连拨前台服务：队列拨号、等待通话结束、间隔倒计时、回到 App。
+ * 放在原生层是为了 App 退到后台/锁屏后依然继续拨号。
+ */
+class AutoDialService : Service() {
+
+    companion object {
+        const val ACTION_START = "com.uglyduckling.autocall.dial.START"
+        const val ACTION_STOP = "com.uglyduckling.autocall.dial.STOP"
+        const val ACTION_PAUSE = "com.uglyduckling.autocall.dial.PAUSE"
+        const val ACTION_RESUME = "com.uglyduckling.autocall.dial.RESUME"
+        const val EXTRA_QUEUE = "queue"
+
+        private const val CHANNEL_ID = "auto_dial_service"
+        private const val NOTIFICATION_ID = 1024
+        private const val CALL_TIMEOUT_MS = 90_000L
+
+        @Volatile
+        var running = false
+            private set
+
+        @Volatile
+        var paused = false
+            private set
+
+        @Volatile
+        var index = 0
+            private set
+
+        @Volatile
+        var total = 0
+            private set
+
+        @Volatile
+        var currentPhone: String? = null
+            private set
+
+        @Volatile
+        var statusText: String = "空闲"
+            private set
+
+        @Volatile
+        var connectedCount = 0
+            private set
+
+        @Volatile
+        var lastResult: Map<String, Any?>? = null
+
+        @Volatile
+        var eventSink: EventChannel.EventSink? = null
+
+        fun statusMap(): Map<String, Any?> = mapOf(
+            "running" to running,
+            "paused" to paused,
+            "index" to index,
+            "total" to total,
+            "phone" to currentPhone,
+            "status" to statusText,
+            "connected" to connectedCount,
+            "lastResult" to lastResult
+        )
+
+        fun emit() {
+            val sink = eventSink ?: return
+            try {
+                sink.success(statusMap())
+            } catch (e: Exception) {
+                // Flutter 已断开
+            }
+        }
+    }
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val queue = mutableListOf<String>()
+    private var callWatcher: CallStateWatcher? = null
+    private var sawActive = false
+    private var countdown = 0
+    private var countingDown = false
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        createChannel()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_START -> startDialing(intent.getStringExtra(EXTRA_QUEUE))
+            ACTION_PAUSE -> {
+                paused = true
+                statusText = "已暂停"
+                updateNotification()
+                emit()
+            }
+            ACTION_RESUME -> {
+                if (running && paused) {
+                    paused = false
+                    if (countingDown) tick() else step()
+                }
+            }
+            ACTION_STOP -> stopDialing("已停止")
+        }
+        return START_NOT_STICKY
+    }
+
+    private fun startDialing(queueJson: String?) {
+        queue.clear()
+        if (!queueJson.isNullOrEmpty()) {
+            try {
+                val array = JSONArray(queueJson)
+                for (i in 0 until array.length()) {
+                    val value = array.optString(i)
+                    if (value.isNotBlank()) queue.add(value)
+                }
+            } catch (e: Exception) {
+                // 队列解析失败
+            }
+        }
+        total = queue.size
+        if (queue.isEmpty()) {
+            stopDialing("没有号码")
+            return
+        }
+        index = 0
+        connectedCount = 0
+        running = true
+        paused = false
+        countingDown = false
+        lastResult = null
+        startForeground(NOTIFICATION_ID, buildNotification("准备拨号"))
+        emit()
+        step()
+    }
+
+    private fun step() {
+        if (!running || paused) return
+        if (index >= queue.size) {
+            stopDialing("本批次拨号完成")
+            return
+        }
+
+        val phone = queue[index]
+        currentPhone = phone
+        statusText = "正在拨打 $phone"
+        updateNotification()
+        emit()
+
+        val mode = DialPrefs.getMode(this)
+        val result = SimHelper.placeCall(this, phone, mode)
+        if (!result.first) {
+            fallbackCall(phone, mode)
+        }
+        statusText =
+            if (result.second >= 0) "正在拨打（卡${result.second + 1}）" else "正在拨打"
+        updateNotification()
+        emit()
+        waitForCallEnd()
+    }
+
+    /** placeCall 失败时用 ACTION_CALL 兜底（借无障碍服务启动，避免后台限制） */
+    private fun fallbackCall(phone: String, mode: Int) {
+        try {
+            val intent = SimHelper.callIntent(this, phone, mode)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val a11y = AutoDialAccessibilityService.instance
+            if (a11y != null) a11y.startActivity(intent) else startActivity(intent)
+        } catch (e: Exception) {
+            statusText = "拨号失败：${e.message}"
+            updateNotification()
+            emit()
+        }
+    }
+
+    private fun waitForCallEnd() {
+        sawActive = false
+        callWatcher?.stop()
+        callWatcher = CallStateWatcher(this) { payload ->
+            val state = payload["state"] as? String
+            when (state) {
+                "offhook", "ringing" -> {
+                    sawActive = true
+                    statusText = "通话中 ${currentPhone ?: ""}"
+                    updateNotification()
+                    emit()
+                }
+                "idle" -> {
+                    if (sawActive) {
+                        val connected = payload["connected"] as? Boolean ?: false
+                        val duration = (payload["durationSec"] as? Number)?.toInt() ?: 0
+                        onCallEnded(connected, duration)
+                    }
+                }
+            }
+        }
+        callWatcher?.start()
+        handler.postDelayed(timeoutRunnable, CALL_TIMEOUT_MS)
+    }
+
+    private val timeoutRunnable = Runnable {
+        if (!running) return@Runnable
+        AutoDialAccessibilityService.requestHangup()
+        handler.postDelayed({
+            if (running && sawActive) onCallEnded(false, 0)
+        }, 3000L)
+    }
+
+    private fun onCallEnded(connected: Boolean, durationSec: Int) {
+        handler.removeCallbacks(timeoutRunnable)
+        callWatcher?.stop()
+        callWatcher = null
+        sawActive = false
+
+        val phone = currentPhone ?: ""
+        if (connected) connectedCount++
+        lastResult = mapOf(
+            "phone" to phone,
+            "connected" to connected,
+            "durationSec" to durationSec
+        )
+        index++
+        statusText = if (connected) "已接通 $durationSec 秒" else "未接通"
+        updateNotification()
+        emit()
+
+        if (DialPrefs.isReturnToApp(this)) {
+            AutoDialAccessibilityService.bringAppToFront()
+        }
+
+        if (!DialPrefs.isAutoNext(this)) {
+            stopDialing("已停止（未开启自动下一个）")
+            return
+        }
+        scheduleNext()
+    }
+
+    private fun scheduleNext() {
+        if (!running) return
+        if (index >= queue.size) {
+            stopDialing("本批次拨号完成")
+            return
+        }
+        countdown = DialPrefs.getIntervalSec(this).coerceIn(1, 120)
+        countingDown = true
+        tick()
+    }
+
+    private fun tick() {
+        if (!running || paused) return
+        if (countdown <= 0) {
+            countingDown = false
+            step()
+            return
+        }
+        statusText = "$countdown 秒后拨打下一个"
+        updateNotification()
+        emit()
+        countdown--
+        handler.postDelayed({ tick() }, 1000L)
+    }
+
+    private fun stopDialing(message: String) {
+        running = false
+        paused = false
+        countdown = 0
+        countingDown = false
+        handler.removeCallbacksAndMessages(null)
+        callWatcher?.stop()
+        callWatcher = null
+        statusText = message
+        emit()
+        try {
+            stopForeground(true)
+        } catch (e: Exception) {
+            // ignore
+        }
+        stopSelf()
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
+        callWatcher?.stop()
+        running = false
+        super.onDestroy()
+    }
+
+    private fun createChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "自动拨号",
+                NotificationManager.IMPORTANCE_LOW
+            )
+            channel.setShowBadge(false)
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.createNotificationChannel(channel)
+        }
+    }
+
+    private fun buildNotification(text: String): Notification {
+        val contentIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val stopIntent = PendingIntent.getService(
+            this,
+            1,
+            Intent(this, AutoDialService::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val toggleIntent = PendingIntent.getService(
+            this,
+            2,
+            Intent(this, AutoDialService::class.java)
+                .setAction(if (paused) ACTION_RESUME else ACTION_PAUSE),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val position = (index + 1).coerceAtMost(queue.size)
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("自动拨号 $position/${queue.size}")
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.stat_sys_phone_call)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(contentIntent)
+            .addAction(0, if (paused) "继续" else "暂停", toggleIntent)
+            .addAction(0, "停止", stopIntent)
+            .build()
+    }
+
+    private fun updateNotification() {
+        if (!running) return
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.notify(NOTIFICATION_ID, buildNotification(statusText))
+        } catch (e: Exception) {
+            // ignore
+        }
+    }
+}

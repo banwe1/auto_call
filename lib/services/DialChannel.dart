@@ -66,10 +66,70 @@ class CallStateEvent {
   }
 }
 
+/// 单个号码的拨打结果
+class DialResult {
+  const DialResult({
+    required this.phone,
+    required this.connected,
+    required this.durationSec,
+  });
+
+  final String phone;
+  final bool connected;
+  final int durationSec;
+
+  static DialResult? fromMap(dynamic raw) {
+    if (raw is! Map) return null;
+    return DialResult(
+      phone: (raw['phone'] as String?) ?? '',
+      connected: (raw['connected'] as bool?) ?? false,
+      durationSec: (raw['durationSec'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+/// 原生拨号服务的运行状态
+class DialStatusEvent {
+  const DialStatusEvent({
+    required this.running,
+    required this.paused,
+    required this.index,
+    required this.total,
+    required this.connected,
+    required this.status,
+    this.phone,
+    this.lastResult,
+  });
+
+  final bool running;
+  final bool paused;
+  final int index;
+  final int total;
+  final int connected;
+  final String status;
+  final String? phone;
+  final DialResult? lastResult;
+
+  static DialStatusEvent fromMap(Map<dynamic, dynamic> map) {
+    return DialStatusEvent(
+      running: (map['running'] as bool?) ?? false,
+      paused: (map['paused'] as bool?) ?? false,
+      index: (map['index'] as num?)?.toInt() ?? 0,
+      total: (map['total'] as num?)?.toInt() ?? 0,
+      connected: (map['connected'] as num?)?.toInt() ?? 0,
+      status: (map['status'] as String?) ?? '',
+      phone: map['phone'] as String?,
+      lastResult: DialResult.fromMap(map['lastResult']),
+    );
+  }
+}
+
 /// 与 Android 原生拨号模块通信
 class DialChannel {
   static const MethodChannel _method = MethodChannel('auto_call/dial');
   static const EventChannel _events = EventChannel('auto_call/call_state');
+  static const EventChannel _dialStatus =
+      EventChannel('auto_call/dial_status');
 
   static Future<bool> hasPermissions() async {
     try {
@@ -150,5 +210,55 @@ class DialChannel {
     return _events.receiveBroadcastStream().map(
           (dynamic event) => CallStateEvent.fromMap(event as Map<dynamic, dynamic>),
         );
+  }
+
+  // ---------- 自动连拨（原生前台服务） ----------
+
+  static Future<void> startAutoDial(List<String> queue) async {
+    await _method.invokeMethod<bool>(
+      'startAutoDial',
+      <String, dynamic>{'queue': queue},
+    );
+  }
+
+  static Future<void> stopAutoDial() async {
+    await _method.invokeMethod<bool>('stopAutoDial');
+  }
+
+  static Future<void> pauseAutoDial() async {
+    await _method.invokeMethod<bool>('pauseAutoDial');
+  }
+
+  static Future<void> resumeAutoDial() async {
+    await _method.invokeMethod<bool>('resumeAutoDial');
+  }
+
+  static Future<DialStatusEvent> getAutoDialStatus() async {
+    final Map<dynamic, dynamic>? map =
+        await _method.invokeMapMethod<dynamic, dynamic>('getAutoDialStatus');
+    return DialStatusEvent.fromMap(map ?? <dynamic, dynamic>{});
+  }
+
+  static Stream<DialStatusEvent> dialStatus() {
+    return _dialStatus.receiveBroadcastStream().map(
+          (dynamic event) =>
+              DialStatusEvent.fromMap(event as Map<dynamic, dynamic>),
+        );
+  }
+
+  // ---------- 拨号设置（存在原生侧，前后台共用） ----------
+
+  static Future<Map<String, dynamic>> getDialSettings() async {
+    final Map<dynamic, dynamic>? map =
+        await _method.invokeMapMethod<dynamic, dynamic>('getDialSettings');
+    if (map == null) return <String, dynamic>{};
+    return map.map(
+      (dynamic key, dynamic value) =>
+          MapEntry<String, dynamic>(key.toString(), value),
+    );
+  }
+
+  static Future<void> setDialSettings(Map<String, dynamic> values) async {
+    await _method.invokeMethod<Map<dynamic, dynamic>>('setDialSettings', values);
   }
 }

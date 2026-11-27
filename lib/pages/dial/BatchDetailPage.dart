@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../components/CommonToast.dart';
 import '../../services/BatchService.dart';
 import '../../services/DialChannel.dart';
-import '../../services/DialEngine.dart';
+import '../../services/DialServiceEngine.dart';
 import '../../viewmodels/BatchProvider.dart';
 import '../../viewmodels/Customer.dart';
 import '../../viewmodels/CustomerProvider.dart';
@@ -53,6 +53,14 @@ class _BatchDetailPageState extends ConsumerState<BatchDetailPage> {
       orElse: () => widget.batch,
     );
     final DialRuntime runtime = ref.watch(dialEngineProvider);
+
+    // 拨号结束后自动刷新列表与批次统计
+    ref.listen<DialRuntime>(dialEngineProvider, (DialRuntime? previous, DialRuntime next) {
+      if ((previous?.running ?? false) && !next.running) {
+        _load();
+        ref.read(batchProvider.notifier).refresh();
+      }
+    });
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       appBar: AppBar(title: Text(batch.name)),
@@ -198,13 +206,11 @@ class _BatchDetailPageState extends ConsumerState<BatchDetailPage> {
     }
 
     final DialBatch batch = widget.batch;
+    final List<String> phones =
+        _customers.map((Customer e) => e.phone).toList();
     await ref.read(dialEngineProvider.notifier).start(
           batch: batch,
-          queue: List<Customer>.from(_customers),
-          intervalSec: 5,
+          phones: phones,
         );
-    if (!mounted) return;
-    await _load();
-    await ref.read(batchProvider.notifier).refresh();
   }
 }

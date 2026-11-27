@@ -2,6 +2,7 @@ package com.uglyduckling.autocall
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Intent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
@@ -33,6 +34,27 @@ class AutoDialAccessibilityService : AccessibilityService() {
         }
 
         fun isConnected(): Boolean = instance != null
+
+        /**
+         * 把 App 主界面拉到前台。
+         * 无障碍服务不受 Android 10+ 后台启动 Activity 限制，故用它来"挂断后回到 App"。
+         */
+        fun bringAppToFront(): Boolean {
+            val service = instance ?: return false
+            return try {
+                val intent = Intent(service, MainActivity::class.java).apply {
+                    addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    )
+                }
+                service.startActivity(intent)
+                true
+            } catch (e: Exception) {
+                false
+            }
+        }
     }
 
     override fun onServiceConnected() {

@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.telecom.TelecomManager
@@ -14,6 +15,7 @@ import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import org.json.JSONArray
 
 /**
  * 与 Flutter 通信：SIM 列表、拨号（指定卡）、权限、通话状态事件。
@@ -26,6 +28,7 @@ class DialBridge(
     companion object {
         private const val METHOD_CHANNEL = "auto_call/dial"
         private const val EVENT_CHANNEL = "auto_call/call_state"
+        private const val DIAL_STATUS_CHANNEL = "auto_call/dial_status"
         private const val PERMISSION_REQUEST_CODE = 4201
 
         val DIAL_PERMISSIONS = arrayOf(
@@ -37,6 +40,7 @@ class DialBridge(
 
     private val methodChannel = MethodChannel(messenger, METHOD_CHANNEL)
     private val eventChannel = EventChannel(messenger, EVENT_CHANNEL)
+    private val dialStatusChannel = EventChannel(messenger, DIAL_STATUS_CHANNEL)
     private val watcher = CallStateWatcher(activity.applicationContext) { payload ->
         activity.runOnUiThread { eventSink?.success(payload) }
     }
@@ -47,6 +51,16 @@ class DialBridge(
     init {
         methodChannel.setMethodCallHandler(this)
         eventChannel.setStreamHandler(this)
+        dialStatusChannel.setStreamHandler(object : EventChannel.StreamHandler {
+            override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                AutoDialService.eventSink = events
+                events?.success(AutoDialService.statusMap())
+            }
+
+            override fun onCancel(arguments: Any?) {
+                AutoDialService.eventSink = null
+            }
+        })
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
@@ -60,6 +74,22 @@ class DialBridge(
                 )
             )
             "dial" -> dial(call, result)
+            "startAutoDial" -> startAutoDial(call, result)
+            "stopAutoDial" -> {
+                sendServiceAction(AutoDialService.ACTION_STOP, false)
+                result.success(true)
+            }
+            "pauseAutoDial" -> {
+                sendServiceAction(AutoDialService.ACTION_PAUSE, false)
+                result.success(true)
+            }
+            "resumeAutoDial" -> {
+                sendServiceAction(AutoDialService.ACTION_RESUME, false)
+                result.success(true)
+            }
+            "getAutoDialStatus" -> result.success(AutoDialService.statusMap())
+            "getDialSettings" -> result.success(DialPrefs.readAll(activity))
+            "setDialSettings" -> setDialSettings(call, result)
             "hangup" -> result.success(AutoDialAccessibilityService.requestHangup())
             "isAccessibilityEnabled" -> result.success(isAccessibilityEnabled())
             "isAccessibilityConnected" ->
@@ -133,22 +163,76 @@ class DialBridge(
         }
 
         val subscriptionId = call.argument<Int>("subscriptionId")
-        try {
-            val telecom = activity.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
-            val uri = Uri.fromParts("tel", number, null)
-            val extras = Bundle()
-
-            if (subscriptionId != null && subscriptionId >= 0) {
+        if (subscriptionId != null && subscriptionId >= 0) {
+            try {
+                val telecom =
+                    activity.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+                val extras = Bundle()
                 SimHelper.phoneAccountFor(activity, subscriptionId)?.let { handle ->
                     extras.putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, handle)
                 }
+                telecom.placeCall(Uri.fromParts("tel", number, null), extras)
+                result.success(mapOf("ok" to true, "simIndex" to -1))
+            } catch (e: Exception) {
+                result.error("dial_failed", e.message ?: e.toString(), null)
             }
-
-            telecom.placeCall(uri, extras)
-            result.success(mapOf("ok" to true))
-        } catch (e: Exception) {
-            result.error("dial_failed", e.message ?: e.toString(), null)
+            return
         }
+
+        // 未指定卡：按保存的模式（跟随系统 / 卡1 / 卡2 / 双卡交替，含前缀）
+        val pair = SimHelper.placeCall(activity, number, DialPrefs.getMode(activity))
+        if (pair.first) {
+            result.success(mapOf("ok" to true, "simIndex" to pair.second))
+        } else {
+            result.error("dial_failed", "拨号失败", null)
+        }
+    }
+
+    private fun startAutoDial(call: MethodCall, result: MethodChannel.Result) {
+        val queue = call.argument<List<String>>("queue") ?: emptyList()
+        if (queue.isEmpty()) {
+            result.error("empty_queue", "没有可拨打的号码", null)
+            return
+        }
+        try {
+            val payload = JSONArray(queue).toString()
+            val intent = Intent(activity, AutoDialService::class.java)
+                .setAction(AutoDialService.ACTION_START)
+                .putExtra(AutoDialService.EXTRA_QUEUE, payload)
+            sendServiceAction(intent)
+            result.success(true)
+        } catch (e: Exception) {
+            result.error("start_failed", e.message ?: e.toString(), null)
+        }
+    }
+
+    private fun sendServiceAction(intent: Intent) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            activity.startForegroundService(intent)
+        } else {
+            activity.startService(intent)
+        }
+    }
+
+    private fun sendServiceAction(action: String, foreground: Boolean) {
+        val intent = Intent(activity, AutoDialService::class.java).setAction(action)
+        if (foreground && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            activity.startForegroundService(intent)
+        } else {
+            activity.startService(intent)
+        }
+    }
+
+    private fun setDialSettings(call: MethodCall, result: MethodChannel.Result) {
+        val ctx = activity.applicationContext
+        call.argument<Int>("mode")?.let { DialPrefs.setMode(ctx, it) }
+        call.argument<Boolean>("compatMode")?.let { DialPrefs.setCompatMode(ctx, it) }
+        call.argument<Int>("intervalSec")?.let { DialPrefs.setIntervalSec(ctx, it) }
+        call.argument<Boolean>("autoNext")?.let { DialPrefs.setAutoNext(ctx, it) }
+        call.argument<Boolean>("returnToApp")?.let { DialPrefs.setReturnToApp(ctx, it) }
+        call.argument<List<String>>("prefix1")?.let { DialPrefs.setPrefixes(ctx, 1, it) }
+        call.argument<List<String>>("prefix2")?.let { DialPrefs.setPrefixes(ctx, 2, it) }
+        result.success(DialPrefs.readAll(ctx))
     }
 
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
