@@ -67,10 +67,11 @@ class AutoDialBanner extends ConsumerWidget {
       }
     }
     if (batch == null) return;
+    final DialBatch resolved = batch;
     if (!context.mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (BuildContext context) => BatchDetailPage(batch: batch),
+        builder: (BuildContext context) => BatchDetailPage(batch: resolved),
       ),
     );
   }
