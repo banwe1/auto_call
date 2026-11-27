@@ -28,10 +28,14 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Flutter
+      # 锁定 Flutter 3.38.10：
+      # 1) pubspec.lock 要求 flutter >= 3.38.4 / dart >= 3.10.3
+      # 2) 该版本的官方模板刚好是 Gradle 8.14 + AGP 8.11.1 + Kotlin 2.2.20，
+      #    与本项目配置一致（更新的 stable 会强制要求 Gradle >= 9.3.1）
+      - name: Set up Flutter 3.38.10
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.38.10'
           cache: true
 
       - name: Show toolchain versions
