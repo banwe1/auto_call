@@ -4,6 +4,7 @@ import '../../viewmodels/CallStatsProvider.dart';
 import '../../utils/CallUtils.dart';
 import '../../constants/AppConstants.dart';
 import '../../components/CustomAppBar.dart';
+import '../import/ImportPage.dart';
 
 /// 自动拨号主页面
 class DialPage extends ConsumerWidget {
@@ -102,7 +103,7 @@ class DialPage extends ConsumerWidget {
                 // 导入号码按钮
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () => _openImport(context),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: colorScheme.primary,
                       foregroundColor: colorScheme.onPrimary,
@@ -156,6 +157,15 @@ class DialPage extends ConsumerWidget {
             child: const Text(AppConstants.BTN_DIAL),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 打开号码导入页
+  void _openImport(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => const ImportPage(),
       ),
     );
   }

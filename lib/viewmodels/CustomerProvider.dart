@@ -51,6 +51,13 @@ class CustomerListController extends StateNotifier<AsyncValue<List<Customer>>> {
     await saveCustomer(customer);
   }
 
+  /// 批量导入客户（单事务写入后统一刷新列表）
+  Future<void> importCustomers(List<Customer> customers) async {
+    if (customers.isEmpty) return;
+    await _storage.saveCustomers(customers);
+    await loadCustomers();
+  }
+
   Future<void> deleteCustomer(int id) async {
     await _storage.deleteCustomer(id);
     await loadCustomers();

@@ -10,6 +10,11 @@ class StorageService {
     return _prefs!;
   }
 
+  /// 显式初始化（Web / 桌面兜底实现）
+  Future<void> init() async {
+    await prefs;
+  }
+
   // Customers
   Future<List<Customer>> getAllCustomers() async {
     final p = await prefs;
@@ -36,6 +41,13 @@ class StorageService {
     }
     
     await p.setString('customers', json.encode(customers.map((e) => _toMap(e)).toList()));
+  }
+
+  /// 批量保存（导入场景）
+  Future<void> saveCustomers(List<Customer> customers) async {
+    for (final Customer customer in customers) {
+      await saveCustomer(customer);
+    }
   }
 
   Future<void> deleteCustomer(int id) async {

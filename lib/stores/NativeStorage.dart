@@ -19,6 +19,11 @@ class StorageService {
     );
   }
 
+  /// 显式初始化（在 main() 中调用，便于捕获启动期错误）
+  Future<void> init() async {
+    await isar;
+  }
+
   // Customers
   Future<List<Customer>> getAllCustomers() async {
     final db = await isar;
@@ -29,6 +34,15 @@ class StorageService {
     final db = await isar;
     await db.writeTxn(() async {
       await db.customers.put(customer);
+    });
+  }
+
+  /// 批量保存（导入场景，单事务写入，避免逐条事务开销）
+  Future<void> saveCustomers(List<Customer> customers) async {
+    if (customers.isEmpty) return;
+    final db = await isar;
+    await db.writeTxn(() async {
+      await db.customers.putAll(customers);
     });
   }
 

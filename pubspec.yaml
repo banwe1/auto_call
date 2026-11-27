@@ -1,7 +1,7 @@
 name: auto_call
 description: 自动拨号应用（Android/Web/Windows）
 publish_to: "none"
-version: 0.1.0
+version: 0.2.0+2
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -24,6 +24,8 @@ dependencies:
   flutter_foreground_task: ^9.2.1
   json_annotation: ^4.9.0
   fluwx: ^5.7.5
+  file_picker: ^13.4.1
+  charset_converter: ^2.3.0
 
 dev_dependencies:
   flutter_test:

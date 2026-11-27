@@ -25,8 +25,15 @@ void main() async {
   foregroundService.init();
   await foregroundService.start();
 
-  // 3. 初始化持久化存储服务 (Isar)
+  // 3. 初始化持久化存储服务 (Isar / SharedPreferences)
   final storage = StorageService();
+  try {
+    await storage.init();
+  } catch (e, st) {
+    debugPrint('本地数据库初始化失败: $e\n$st');
+  }
+
+  // 4. 初始化微信 SDK
   await fluwxInstance.registerApi(
     appId: AppConstants.WECHAT_APP_ID,
     universalLink: AppConstants.WECHAT_UNIVERSAL_LINK,
