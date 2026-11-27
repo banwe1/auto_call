@@ -10,7 +10,7 @@ on:
       - master
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-apk:
@@ -118,3 +118,31 @@ jobs:
           path: build/app/outputs/flutter-apk/*.apk
           if-no-files-found: error
           retention-days: 30
+
+      # ---------------- 发布到 GitHub Releases（公开下载链接） ----------------
+      # 每次构建成功后，把 APK 挂到一个名为 latest 的 Release 上：
+      # 固定下载页：https://github.com/banwe1/auto_call/releases/latest
+      - name: Remove previous "latest" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete latest --yes --cleanup-tag || true
+
+      - name: Publish APK to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: 自动拨号 · 最新构建
+          body: |
+            自动构建产物，可直接下载安装。
+
+            - 提交：${{ github.sha }}
+            - 构建号：${{ github.run_number }}
+            - Flutter：3.38.10
+            - 支持架构：arm64-v8a（现代手机）/ armeabi-v7a（老机型）
+            - 安装包使用 debug 签名，仅供侧载安装，不可上架应用商店
+            - 安装后请授予「电话」权限以使用拨号功能
+          files: build/app/outputs/flutter-apk/*.apk
+          fail_on_unmatched_files: true
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
