@@ -46,6 +46,20 @@ class StorageService {
     });
   }
 
+  /// 按批次查询号码
+  Future<List<Customer>> getCustomersByBatch(String batchId) async {
+    final db = await isar;
+    return await db.customers.filter().noteContains(batchId).findAll();
+  }
+
+  /// 删除某批次的全部号码
+  Future<void> deleteCustomersByBatch(String batchId) async {
+    final db = await isar;
+    await db.writeTxn(() async {
+      await db.customers.filter().noteContains(batchId).deleteAll();
+    });
+  }
+
   Future<void> deleteCustomer(int id) async {
     final db = await isar;
     await db.writeTxn(() async {

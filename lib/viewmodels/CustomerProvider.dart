@@ -58,6 +58,17 @@ class CustomerListController extends StateNotifier<AsyncValue<List<Customer>>> {
     await loadCustomers();
   }
 
+  /// 查询某批次下的号码
+  Future<List<Customer>> customersOfBatch(String batchId) {
+    return _storage.getCustomersByBatch(batchId);
+  }
+
+  /// 删除某批次的全部号码
+  Future<void> deleteBatchCustomers(String batchId) async {
+    await _storage.deleteCustomersByBatch(batchId);
+    await loadCustomers();
+  }
+
   Future<void> deleteCustomer(int id) async {
     await _storage.deleteCustomer(id);
     await loadCustomers();

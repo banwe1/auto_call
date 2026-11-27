@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../components/CommonToast.dart';
 import '../../services/ImportService.dart';
+import '../../viewmodels/BatchProvider.dart';
 import '../../viewmodels/Customer.dart';
 import '../../viewmodels/CustomerProvider.dart';
 
@@ -27,7 +28,18 @@ class _ImportPageState extends ConsumerState<ImportPage> {
   final TextEditingController _pasteCtrl = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    _batchCtrl.addListener(_onBatchNameChanged);
+  }
+
+  void _onBatchNameChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    _batchCtrl.removeListener(_onBatchNameChanged);
     _batchCtrl.dispose();
     _pasteCtrl.dispose();
     super.dispose();
@@ -124,6 +136,12 @@ class _ImportPageState extends ConsumerState<ImportPage> {
     final ImportParseResult? result = _result;
     if (result == null || result.entries.isEmpty || _busy) return;
 
+    final String batchName = _batchCtrl.text.trim();
+    if (batchName.isEmpty) {
+      CommonToast.show('请先填写批次名称', context: context);
+      return;
+    }
+
     setState(() => _busy = true);
     try {
       final List<Customer> existing =
@@ -131,9 +149,10 @@ class _ImportPageState extends ConsumerState<ImportPage> {
       final Set<String> existingPhones =
           existing.map((Customer e) => e.phone).toSet();
 
-      final String batch = _batchCtrl.text.trim();
       final DateTime now = DateTime.now();
       final List<Customer> toInsert = <Customer>[];
+      final Map<Customer, ImportEntry> entryOfCustomer =
+          <Customer, ImportEntry>{};
 
       for (final ImportEntry entry in result.entries) {
         if (existingPhones.contains(entry.phone)) continue;
@@ -144,13 +163,29 @@ class _ImportPageState extends ConsumerState<ImportPage> {
           ..phone = entry.phone
           ..tag = '初访'
           ..rating = 1
-          ..createdAt = now
-          ..note = jsonEncode(<String, dynamic>{
-            'remark': entry.remark,
-            'batch': batch.isEmpty ? null : batch,
-            'category': _asDialTask ? 'dial_task' : 'customer',
-          });
+          ..createdAt = now;
         toInsert.add(customer);
+        entryOfCustomer[customer] = entry;
+      }
+
+      if (toInsert.isEmpty) {
+        if (!mounted) return;
+        CommonToast.show('这些号码都已存在，无需导入', context: context);
+        return;
+      }
+
+      final DialBatch batch = await ref
+          .read(batchProvider.notifier)
+          .create(name: batchName, total: toInsert.length);
+
+      for (final Customer customer in toInsert) {
+        final ImportEntry entry = entryOfCustomer[customer]!;
+        customer.note = jsonEncode(<String, dynamic>{
+          'batchId': batch.id,
+          'batch': batchName,
+          'remark': entry.remark,
+          'category': _asDialTask ? 'dial_task' : 'customer',
+        });
       }
 
       await ref.read(customerListProvider.notifier).importCustomers(toInsert);
@@ -158,7 +193,7 @@ class _ImportPageState extends ConsumerState<ImportPage> {
       final int skipped = result.entries.length - toInsert.length;
       if (!mounted) return;
       CommonToast.success(
-        '已导入 ${toInsert.length} 个，跳过已存在 $skipped 个',
+        '已导入 ${toInsert.length} 个到「$batchName」，跳过已存在 $skipped 个',
         context: context,
       );
       Navigator.of(context).pop();
@@ -195,8 +230,13 @@ class _ImportPageState extends ConsumerState<ImportPage> {
                 child: SizedBox(
                   height: 46,
                   child: ElevatedButton(
-                    onPressed: _busy ? null : _confirm,
-                    child: Text('确认导入 ${result.entries.length} 个'),
+                    onPressed:
+                        (_busy || _batchCtrl.text.trim().isEmpty) ? null : _confirm,
+                    child: Text(
+                      _batchCtrl.text.trim().isEmpty
+                          ? '请先填写批次名称'
+                          : '确认导入 ${result.entries.length} 个',
+                    ),
                   ),
                 ),
               ),
@@ -288,7 +328,7 @@ class _ImportPageState extends ConsumerState<ImportPage> {
           child: TextField(
             controller: _batchCtrl,
             decoration: const InputDecoration(
-              labelText: '备注 / 批次（可选）',
+              labelText: '批次名称（必填）',
               hintText: '例如：9月名单',
               border: OutlineInputBorder(),
               isDense: true,

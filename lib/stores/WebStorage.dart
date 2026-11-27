@@ -50,6 +50,25 @@ class StorageService {
     }
   }
 
+  /// 按批次查询号码
+  Future<List<Customer>> getCustomersByBatch(String batchId) async {
+    final List<Customer> all = await getAllCustomers();
+    return all
+        .where((Customer e) => (e.note ?? '').contains(batchId))
+        .toList();
+  }
+
+  /// 删除某批次的全部号码
+  Future<void> deleteCustomersByBatch(String batchId) async {
+    final List<Customer> all = await getAllCustomers();
+    all.removeWhere((Customer e) => (e.note ?? '').contains(batchId));
+    final SharedPreferences p = await prefs;
+    await p.setString(
+      'customers',
+      json.encode(all.map((Customer e) => _toMap(e)).toList()),
+    );
+  }
+
   Future<void> deleteCustomer(int id) async {
     final p = await prefs;
     final List<Customer> customers = await getAllCustomers();
