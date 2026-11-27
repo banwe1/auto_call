@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">自动拨号</string>
+    <string name="a11y_service_label">自动拨号辅助</string>
+    <string name="a11y_service_desc">开启后可在通话界面自动点击「挂断」，用于自动连拨。仅监听通话界面，不读取其他应用内容。</string>
+</resources>

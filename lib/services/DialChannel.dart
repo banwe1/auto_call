@@ -110,6 +110,42 @@ class DialChannel {
     });
   }
 
+  /// 无障碍服务是否已开启（系统设置里）
+  static Future<bool> isAccessibilityEnabled() async {
+    try {
+      return await _method.invokeMethod<bool>('isAccessibilityEnabled') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// 无障碍服务是否已连接（真正可用）
+  static Future<bool> isAccessibilityConnected() async {
+    try {
+      return await _method.invokeMethod<bool>('isAccessibilityConnected') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// 跳转系统的无障碍设置页
+  static Future<void> openAccessibilitySettings() async {
+    try {
+      await _method.invokeMethod<bool>('openAccessibilitySettings');
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  /// 请求无障碍服务点击「挂断」
+  static Future<bool> hangup() async {
+    try {
+      return await _method.invokeMethod<bool>('hangup') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Stream<CallStateEvent> callState() {
     return _events.receiveBroadcastStream().map(
           (dynamic event) => CallStateEvent.fromMap(event as Map<dynamic, dynamic>),

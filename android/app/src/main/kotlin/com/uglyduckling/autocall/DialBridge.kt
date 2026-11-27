@@ -2,10 +2,13 @@ package com.uglyduckling.autocall
 
 import android.Manifest
 import android.app.Activity
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.telecom.TelecomManager
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
@@ -57,7 +60,39 @@ class DialBridge(
                 )
             )
             "dial" -> dial(call, result)
+            "hangup" -> result.success(AutoDialAccessibilityService.requestHangup())
+            "isAccessibilityEnabled" -> result.success(isAccessibilityEnabled())
+            "isAccessibilityConnected" ->
+                result.success(AutoDialAccessibilityService.isConnected())
+            "openAccessibilitySettings" -> openAccessibilitySettings(result)
             else -> result.notImplemented()
+        }
+    }
+
+    private fun isAccessibilityEnabled(): Boolean {
+        val expected = ComponentName(
+            activity,
+            AutoDialAccessibilityService::class.java
+        ).flattenToString()
+        val enabled = try {
+            Settings.Secure.getString(
+                activity.contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            )
+        } catch (e: Exception) {
+            null
+        } ?: return false
+        return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
+    }
+
+    private fun openAccessibilitySettings(result: MethodChannel.Result) {
+        try {
+            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            activity.startActivity(intent)
+            result.success(true)
+        } catch (e: Exception) {
+            result.error("open_failed", e.message ?: e.toString(), null)
         }
     }
 

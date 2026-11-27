@@ -60,6 +60,19 @@
             android:exported="false">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Automated dialer background service" />
         </service>
+        <!-- 无障碍服务：在通话界面自动点击「挂断」（自动连拨用） -->
+        <service
+            android:name=".AutoDialAccessibilityService"
+            android:exported="false"
+            android:label="@string/a11y_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/auto_dial_accessibility" />
+        </service>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
