@@ -66,6 +66,26 @@ class AutoDialService : Service() {
         @Volatile
         var eventSink: EventChannel.EventSink? = null
 
+        /** App 是否在前台（由 MainActivity 的 onResume/onPause 维护） */
+        @Volatile
+        private var appVisible: Boolean = false
+
+        @Volatile
+        private var serviceRef: AutoDialService? = null
+
+        /** App 回到前台 → 继续倒计时 */
+        fun onAppForeground() {
+            appVisible = true
+            serviceRef?.onAppVisible()
+        }
+
+        /** App 离开前台 → 冻结倒计时 */
+        fun onAppBackground() {
+            appVisible = false
+        }
+
+        fun isAppVisible(): Boolean = appVisible
+
         fun statusMap(): Map<String, Any?> = mapOf(
             "running" to running,
             "paused" to paused,
@@ -93,12 +113,25 @@ class AutoDialService : Service() {
     private var sawActive = false
     private var countdown = 0
     private var countingDown = false
+    private var waitingForApp = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
+        serviceRef = this
         createChannel()
+    }
+
+    /** App 回到前台时调用：若正在等待前台，则从剩余秒数继续 */
+    fun onAppVisible() {
+        if (!running || paused) return
+        if (!countingDown || !waitingForApp) return
+        waitingForApp = false
+        statusText = "$countdown 秒后拨打下一个"
+        updateNotification()
+        emit()
+        tick()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -144,6 +177,8 @@ class AutoDialService : Service() {
         running = true
         paused = false
         countingDown = false
+        waitingForApp = false
+        appVisible = true
         lastResult = null
         startForeground(NOTIFICATION_ID, buildNotification("准备拨号"))
         emit()
@@ -264,6 +299,19 @@ class AutoDialService : Service() {
 
     private fun tick() {
         if (!running || paused) return
+
+        // 固定行为：App 不在前台时冻结倒计时（回到 App 后从剩余秒数继续）
+        if (!appVisible) {
+            if (!waitingForApp) {
+                waitingForApp = true
+                statusText = "已暂停（回到 App 继续）"
+                updateNotification()
+                emit()
+            }
+            return
+        }
+        waitingForApp = false
+
         if (countdown <= 0) {
             countingDown = false
             step()
@@ -298,6 +346,7 @@ class AutoDialService : Service() {
         handler.removeCallbacksAndMessages(null)
         callWatcher?.stop()
         running = false
+        serviceRef = null
         super.onDestroy()
     }
 

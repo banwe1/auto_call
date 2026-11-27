@@ -20,5 +20,17 @@ class MainActivity : FlutterActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         dialBridge?.onRequestPermissionsResult(requestCode, grantResults)
     }
+
+    override fun onResume() {
+        super.onResume()
+        // App 回到前台 → 继续拨号倒计时
+        AutoDialService.onAppForeground()
+    }
+
+    override fun onPause() {
+        // App 离开前台 → 冻结倒计时
+        AutoDialService.onAppBackground()
+        super.onPause()
+    }
 }
 
