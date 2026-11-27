@@ -114,6 +114,7 @@ class AutoDialService : Service() {
     private var countdown = 0
     private var countingDown = false
     private var waitingForApp = false
+    private var dialStartedAt = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -199,6 +200,7 @@ class AutoDialService : Service() {
         emit()
 
         val mode = DialPrefs.getMode(this)
+        dialStartedAt = System.currentTimeMillis()
         val result = SimHelper.placeCall(this, phone, mode)
         if (!result.first) {
             fallbackCall(phone, mode)
@@ -265,6 +267,12 @@ class AutoDialService : Service() {
 
         val phone = currentPhone ?: ""
         if (connected) connectedCount++
+        val dialSec = if (dialStartedAt > 0) {
+            ((System.currentTimeMillis() - dialStartedAt) / 1000L).toInt()
+        } else {
+            0
+        }
+        DialStats.recordCall(this, connected, durationSec, dialSec)
         lastResult = mapOf(
             "phone" to phone,
             "connected" to connected,

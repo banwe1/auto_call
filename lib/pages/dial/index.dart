@@ -10,11 +10,13 @@ import '../../components/SwipeActionCard.dart';
 import '../../constants/AppConstants.dart';
 import '../../services/BatchService.dart';
 import '../../services/DialChannel.dart';
+import '../../services/DialStatsStore.dart';
 import '../../utils/CallUtils.dart';
 import '../../viewmodels/BatchProvider.dart';
 import '../../viewmodels/CallStatsProvider.dart';
 import '../../viewmodels/CustomerProvider.dart';
 import '../import/ImportPage.dart';
+import '../report/DailyReportPage.dart';
 import 'BatchDetailPage.dart';
 
 const Color _accent = Color(0xFF3D7CF6);
@@ -28,7 +30,8 @@ class DialPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final CallStats stats = ref.watch(callStatsProvider);
+    final DayStat today =
+        ref.watch(todayStatProvider).value ?? const DayStat(date: '');
     final AsyncValue<List<DialBatch>> batchesAsync = ref.watch(batchProvider);
 
     return Scaffold(
@@ -57,7 +60,7 @@ class DialPage extends ConsumerWidget {
       ),
       body: Column(
         children: <Widget>[
-          _reportBar(stats),
+          _reportBar(context, today),
           const AutoDialBanner(),
           const DialStatusBar(),
           Expanded(
@@ -87,7 +90,7 @@ class DialPage extends ConsumerWidget {
     CommonToast.show('$name 暂未实现', context: context);
   }
 
-  Widget _reportBar(CallStats stats) {
+  Widget _reportBar(BuildContext context, DayStat today) {
     return Container(
       height: 48,
       color: Colors.white,
@@ -95,16 +98,26 @@ class DialPage extends ConsumerWidget {
       child: Row(
         children: <Widget>[
           Text(
-            '今日已拨打：${stats.dialedToday}',
+            '今日已拨打：${today.total}',
             style: const TextStyle(fontSize: 16, color: _textMain),
           ),
           const SizedBox(width: 14),
           Text(
-            '已接通：${stats.connectedToday}',
+            '已接通：${today.connected}',
             style: const TextStyle(fontSize: 16, color: _textMain),
           ),
           const Spacer(),
-          const Icon(Icons.bar_chart, size: 24, color: _accent),
+          InkWell(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (BuildContext context) => const DailyReportPage(),
+              ),
+            ),
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(Icons.bar_chart, size: 24, color: _accent),
+            ),
+          ),
         ],
       ),
     );
@@ -423,6 +436,7 @@ class DialPage extends ConsumerWidget {
                 Navigator.pop(dialogContext);
                 ref.read(callStatsProvider.notifier).addDialed();
                 await _dialWithSim(context, number, subId);
+                ref.invalidate(dialStatsProvider);
               },
               child: const Text('拨打'),
             ),

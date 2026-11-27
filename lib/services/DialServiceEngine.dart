@@ -7,6 +7,7 @@ import '../viewmodels/BatchProvider.dart';
 import '../viewmodels/CallStatsProvider.dart';
 import 'BatchService.dart';
 import 'DialChannel.dart';
+import 'DialStatsStore.dart';
 
 /// 拨号运行状态（镜像原生前台服务）
 class DialRuntime {
@@ -101,6 +102,7 @@ class DialServiceEngine extends StateNotifier<DialRuntime> {
     final CallStatsController stats = _ref.read(callStatsProvider.notifier);
     stats.addDialed();
     if (result.connected) stats.addConnected();
+    _ref.invalidate(dialStatsProvider);
   }
 
   @override

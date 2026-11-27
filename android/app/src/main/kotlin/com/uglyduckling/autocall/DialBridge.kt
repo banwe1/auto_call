@@ -90,6 +90,11 @@ class DialBridge(
             "getAutoDialStatus" -> result.success(AutoDialService.statusMap())
             "getDialSettings" -> result.success(DialPrefs.readAll(activity))
             "setDialSettings" -> setDialSettings(call, result)
+            "getDialStats" -> result.success(DialStats.snapshot(activity))
+            "clearDialStats" -> {
+                DialStats.clearExceptToday(activity)
+                result.success(DialStats.snapshot(activity))
+            }
             "hangup" -> result.success(AutoDialAccessibilityService.requestHangup())
             "isAccessibilityEnabled" -> result.success(isAccessibilityEnabled())
             "isAccessibilityConnected" ->
@@ -172,6 +177,7 @@ class DialBridge(
                     extras.putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, handle)
                 }
                 telecom.placeCall(Uri.fromParts("tel", number, null), extras)
+                DialStats.recordCall(activity, false, 0, 0)
                 result.success(mapOf("ok" to true, "simIndex" to -1))
             } catch (e: Exception) {
                 result.error("dial_failed", e.message ?: e.toString(), null)
@@ -182,6 +188,7 @@ class DialBridge(
         // 未指定卡：按保存的模式（跟随系统 / 卡1 / 卡2 / 双卡交替，含前缀）
         val pair = SimHelper.placeCall(activity, number, DialPrefs.getMode(activity))
         if (pair.first) {
+            DialStats.recordCall(activity, false, 0, 0)
             result.success(mapOf("ok" to true, "simIndex" to pair.second))
         } else {
             result.error("dial_failed", "拨号失败", null)

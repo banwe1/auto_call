@@ -261,4 +261,26 @@ class DialChannel {
   static Future<void> setDialSettings(Map<String, dynamic> values) async {
     await _method.invokeMethod<Map<dynamic, dynamic>>('setDialSettings', values);
   }
+
+  // ---------- 每日统计 ----------
+
+  static Future<Map<String, dynamic>> getDialStats() async {
+    final Map<dynamic, dynamic>? map =
+        await _method.invokeMapMethod<dynamic, dynamic>('getDialStats');
+    if (map == null) return <String, dynamic>{};
+    return map.map(
+      (dynamic key, dynamic value) =>
+          MapEntry<String, dynamic>(key.toString(), value),
+    );
+  }
+
+  static Future<Map<String, dynamic>> clearDialStats() async {
+    final Map<dynamic, dynamic>? map =
+        await _method.invokeMapMethod<dynamic, dynamic>('clearDialStats');
+    if (map == null) return <String, dynamic>{};
+    return map.map(
+      (dynamic key, dynamic value) =>
+          MapEntry<String, dynamic>(key.toString(), value),
+    );
+  }
 }

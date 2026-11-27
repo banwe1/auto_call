@@ -1,5 +1,6 @@
 import 'package:auto_call/viewmodels/CustomerProvider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'routes/AppRouter.dart';
 import 'constants/AppConstants.dart';
@@ -70,6 +71,17 @@ class MyApp extends ConsumerWidget {
       theme: themeData,
       // 使用 GoRouter 路由配置
       routerConfig: router,
+      // 中文本地化：日期选择器显示"取消/确定"、周一开头
+      locale: const Locale('zh', 'CN'),
+      supportedLocales: const <Locale>[
+        Locale('zh', 'CN'),
+        Locale('en', 'US'),
+      ],
+      localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
     );
   }
 }
