@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../components/AutoDialBanner.dart';
 import '../../components/CommonToast.dart';
 import '../../components/CustomAppBar.dart';
 import '../../components/DialStatusBar.dart';
@@ -57,6 +58,7 @@ class DialPage extends ConsumerWidget {
       body: Column(
         children: <Widget>[
           _reportBar(stats),
+          const AutoDialBanner(),
           const DialStatusBar(),
           Expanded(
             child: batchesAsync.when(

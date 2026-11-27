@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../viewmodels/BatchProvider.dart';
 import '../viewmodels/CallStatsProvider.dart';
@@ -26,6 +27,9 @@ class DialRuntime {
   final String? phone;
   final String status;
   final int connected;
+
+  /// 兼容旧字段名
+  String? get currentPhone => phone;
 
   bool get active => running || total > 0;
 }
@@ -58,6 +62,8 @@ class DialServiceEngine extends StateNotifier<DialRuntime> {
     if (phones.isEmpty) return;
     _batchId = batch.id;
     _lastHandledPhone = null;
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('active_batch_id', batch.id);
     await DialChannel.startAutoDial(phones);
   }
 
