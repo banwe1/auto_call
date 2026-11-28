@@ -429,15 +429,19 @@ class _BatchDetailPageState extends ConsumerState<BatchDetailPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: <Widget>[
-            _bottomEntry(Icons.flight_takeoff, '辅助', () {
+            _bottomEntry(Icons.flight_takeoff, '辅助', onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (BuildContext context) => const AccessibilityPage(),
                 ),
               );
             }),
-            _bottomEntry(Icons.smartphone, '后台', _showBackgroundInfo),
-            _bottomEntry(Icons.settings, '设置', () {
+            _bottomEntry(
+              Icons.smartphone,
+              '后台',
+              onTap: _showBackgroundInfo,
+            ),
+            _bottomEntry(Icons.settings, '设置', onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (BuildContext context) => const DialSettingsPage(),

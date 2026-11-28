@@ -382,7 +382,7 @@ class _DialRunPageState extends ConsumerState<DialRunPage> {
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              '备注：${NumberMeta.remarkOf(next) ?? '无'}',
+              '备注：${next == null ? '无' : (NumberMeta.remarkOf(next) ?? '无')}',
               style: const TextStyle(fontSize: 16, color: _textMain),
             ),
           ),
