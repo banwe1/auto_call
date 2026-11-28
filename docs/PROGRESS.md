@@ -1,4 +1,4 @@
-# 开发进度（2026-11-28 · dev-b21 任务详情页）
+# 开发进度（2026-11-28 · dev-b22 任务详情页）
 
 ## 一、当前状态
 
@@ -7,12 +7,14 @@
 | 分支 | `feature/local-mode` |
 | 版本 | `0.2.0+2` |
 | 工具链 | Flutter 3.38.10 / Gradle 8.14 / AGP 8.11.1 / Kotlin 2.2.20 / compileSdk 36 |
-| 最新构建 | ✅ `自动拨号v0.2.0-dev-b21.apk`（18.7MB，run 21，任务详情页 + 号码级状态 + 标记客户） |
+| 最新构建 | ✅ `自动拨号v0.2.0-dev-b22.apk`（18.7MB，run 22，任务详情页 + 号码级状态 + 标记客户） |
 | 上一个成功构建 | ✅ `自动拨号v0.2.0-dev-b20.apk`（同一功能的首版，run 20） |
+| HEAD | `3121ed8`（已推送 `origin/feature/local-mode`） |
 | master | 仍为 `v0.1.0`（验收后合并发正式版） |
 | 测试机 | 小米 13（双卡 4 模式 / 无障碍挂断 / 连续拨 已验证通过） |
 
-下载位置：GitHub → Actions → 对应 run → Artifacts → `auto_call-apk`
+产物位置：Actions → 对应 run → Artifacts → `auto_call-apk`（zip ≈18.7MB，解压后 apk ≈37.7MB）。
+**下载需要 GitHub 登录**；命令行下载可用本机 GCM 里缓存的 `gho_` token（Plan/Act 均可验证）。
 
 ---
 
@@ -21,9 +23,11 @@
 - **CI/发布**：GitHub Actions 构建、Flutter 版本锁定、镜像剔除、Gradle/签名缓存、中文包名、feature 分支构建、仅 master 发 Release
 - **导入**：txt/csv/粘贴、UTF-8/GBK/UTF-16 识别、号码清洗、去重、预览、批次名必填、创建批次
 - **拨号页**：批次卡片（106dp / X-Y / 接通量 / 客户量 / 时间）、右滑 删除/改名/置顶、报表条、手动拨号/导入号码
-- **批次详情**（dev-b21 重写，对齐 base）：未拨打 / 已拨打分段、`情况`+`是否接通⌄`表头、底部情况筛选（全部/未知/客户/无用）、多选（全选/标记客户/标记无用/删除）、导出（占位）+ 报表、底部 4 个圆形入口（辅助/后台/设置/自动拨号）
-- **号码级状态**（dev-b21）：`NumberMeta` 把 已拨打/是否接通/时长/拨打时间/情况/近 30 天拨打次数 存进 `Customer.note` 的 JSON（不改 Isar 结构、零迁移、Isar 与 Web 行为一致），拨号结束由引擎自动回写
-- **标记客户闭环**（dev-b21）：标记客户 → 客户量 +1、当日新客户 +1（原生 `DialStats.addNewCustomer`）→ 打开「添加客户」补充资料（保留批次与拨号状态）；客户列表只显示被标记的客户 + 手工添加的老客户
+- **批次详情**（dev-b22 重写，对齐 base）：未拨打 / 已拨打分段、`情况`+`是否接通⌄`表头、底部情况筛选（全部/未知/客户/无用）、多选（全选/标记客户/标记无用/删除）、导出（占位）+ 报表、底部 4 个圆形入口（辅助/后台/设置/自动拨号）
+- **号码级状态**（dev-b22）：`NumberMeta` 把 已拨打/是否接通/时长/拨打时间/情况/近 30 天拨打次数 存进 `Customer.note` 的 JSON（不改 Isar 结构、零迁移、Isar 与 Web 行为一致），拨号结束由引擎自动回写
+- **标记客户闭环**（dev-b22）：标记客户 → 客户量 +1、当日新客户 +1（原生 `DialStats.addNewCustomer`）→ 打开「添加客户」补充资料（保留批次与拨号状态）；客户列表只显示被标记的客户 + 手工添加的老客户
+- **`AddCustomer` note 合并修复**（dev-b22）：原来保存时整段覆盖 `note`，会把批次归属与拨号状态冲掉；改为合并写入（`NumberMeta.raw` + 覆盖 `backupPhone/remark/industries`），并支持 `initialPhone` 预填
+- **开发环境修复**（dev-b22）：VS Code 的 Java/Gradle 扩展把 `gradle-wrapper.properties` 私自升到 Gradle 9.7.1 并锁文件；已杀扩展 JVM、还原 8.14、提交 `.vscode/settings.json` 关闭 `java.import.gradle` 与 `gradle.autoDetect`
 - **双卡**：跟随系统 / 卡1 / 卡2 / 双卡交替（持久化）+ 每卡多前缀轮换 + 修复开启（兼容 extra）
 - **自动连拨**：原生前台服务（后台/锁屏继续）、CallLog 判定接通、间隔倒计时、通知栏进度 + 暂停/停止
 - **挂断回 App**：无障碍 `bringAppToFront()` + 通知兜底
@@ -36,7 +40,7 @@
 
 ## 三、待办队列（按优先级）
 
-1. **装机验证 dev-b21**（见第五节）
+1. **装机验证 dev-b22**（见第五节）
 2. **拨号记录 + 手动拨号页**：`DialHistory.kt`（默认保留 100 条，用户可改、自动截断）、自绘键盘（不弹系统输入法）、绿色悬浮宫格按钮、筛选浮层面板、手动拨号设置
 3. **拨打个数提醒**：达到 N 个暂停 + 对话框继续（原生侧暂停）
 4. **拨号运行页增强**：下一个预览、`N次(30天内)`、重拨/下一个、暂停/停止（对齐 base 的 `AutoActivity`）
@@ -54,11 +58,15 @@
 | 倒计时 | **固定行为**：App 不在前台即暂停，回到前台继续（无开关） |
 | 日期选择器 | Flutter 中文选择器（蓝头、周一开头、取消/确定） |
 | 音频输出 | **4 选 1**，接受新增权限，失败用无障碍点击兜底 |
+| 任务详情「导出」 | **纯占位**：按钮存在但点击不做任何响应（不弹提示） |
+| 客户来源 | 客户**只能**由「已拨打的号码 → 标记客户」产生；唯一例外是手工添加且无 `batchId` 的老客户 |
+| 号码级状态存储 | 存 `Customer.note` 的 JSON，**不改 Isar 结构**（本机无 Flutter/Dart SDK，CI 也不跑 build_runner） |
+| 新客户统计 | 标记客户时调用原生 `DialStats.addNewCustomer`，报表「新客户」才会增长 |
 | 不做 / 延后 | 短信、分享文件导入、云端/团队、会员购买、登录、领取（仅保留 UI）、PC 局域网导入 |
 
 ---
 
-## 五、下一步：验证 dev-b21 任务详情页
+## 五、下一步：验证 dev-b22 任务详情页
 
 1. 拨号页点进某个批次 → 顶部应有 `未拨打(N) / 已拨打(N)` 分段 + 右侧「多选」，右上角「导出」「报表」
 2. 未拨打行应为 `姓名：无   电话：xxx` / `备注：无`；点底部圆形「自动拨号」开始连拨，播完一通后该号码应自动跳到「已拨打」
@@ -73,18 +81,41 @@
 ## 六、已知问题 / 风险
 
 - 手动拨号只记录 `total`（接通与时长无法跟踪），自动拨号记录完整
+- **本机没有 Flutter/Dart SDK**：不能 `flutter analyze` / `build_runner` / 本地出包，代码只能靠 CI 编译验证（一次约 8 分钟）
+- CI 的 artifact 需要 GitHub token 才能命令行下载；浏览器下载需登录 GitHub
 - 任务详情页「导出」为占位按钮（点击无响应），导出功能待后续实现
-- 号码级状态存在 `Customer.note` 的 JSON 里（不改 Isar 结构），因此 `mark` 等字段无法走 Isar 索引，筛选在内存中完成
+- 号码级状态存在 `Customer.note` 的 JSON 里（不改 Isar 结构），因此 `mark` 等字段无法走 Isar 索引，筛选在内存中完成（已加 `Expando` 解析缓存）
 - 删除号码后批次 `total` 不自动减少（仅客户量会同步扣减）
+- 旧批次（dev-b18 之前导入）的号码没有拨号状态，会全部落在「未拨打」，拨一遍后自动补上
 - Isar 3.1 在部分 Android 15+（16KB page）设备有兼容风险
 - 仍使用 debug 签名（侧载可用，不可上架）
 
 ---
 
-## 七、常用命令
+## 七、下次开工第一步
+
+1. 安装 `自动拨号v0.2.0-dev-b22.apk`，按第五节 7 条验证任务详情页
+2. 开始 **b23 — 拨号记录 + 手动拨号整页 + 拨打个数提醒**
+   - `DialHistory.kt`：每通结束写入 `number / connected / talkSec / dialSec / at / batchId / source`，默认保留 100 条（用户可改、写入时自动截断），桥接 `getDialHistory / clearDialHistory / setHistoryLimit`
+   - 手动拨号页：自绘数字键盘（不使用系统输入法）、绿色悬浮宫格按钮、拨号记录列表、筛选浮层面板
+   - 拨打个数提醒：原生侧每 N 个自动暂停 + 弹窗「继续」
+3. 可选优化：让 feature 分支构建也发到 `dev-latest` 预发布 Release，获得**免登录固定直链**
+
+## 八、本轮提交记录
+
+| commit | 内容 |
+|---|---|
+| `d0d8860` | feat(dial)：任务详情页重写 + 号码级状态 + 标记客户 |
+| `33daaf1` | chore(vscode)：关闭 java/gradle 自动导入，保护 wrapper 8.14 |
+| `04d8132` | perf(note)：`NumberMeta` 解析缓存 |
+| `3121ed8` | docs：记录 dev-b21 构建 |
+
+## 九、常用命令
 
 ```bash
 git pull origin feature/local-mode     # 拉取
 # 出包：push 到 feature/local-mode 后，在 Actions 页面下载 artifact
+# 查询构建状态（无需 gh）：
+#   Invoke-RestMethod 'https://api.github.com/repos/banwe1/auto_call/actions/runs?per_page=1'
 ```
 
