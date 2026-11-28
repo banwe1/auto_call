@@ -49,9 +49,24 @@ class NumberMeta {
   // ---------------- 读 ----------------
 
   /// 取出 note 里的完整 JSON（损坏或为空时返回空 Map）
+  ///
+  /// 结果按 Customer 对象缓存，并以 note 原文校验有效性，
+  /// 避免列表筛选/排序时对同一号码反复 jsonDecode。
   static Map<String, dynamic> raw(Customer customer) {
-    final String? note = customer.note;
-    if (note == null || note.trim().isEmpty) return <String, dynamic>{};
+    final String note = customer.note ?? '';
+    final _CachedMeta? cached = _cache[customer];
+    if (cached != null && cached.note == note) {
+      return Map<String, dynamic>.from(cached.data);
+    }
+    final Map<String, dynamic> data = _decode(note);
+    _cache[customer] = _CachedMeta(note, data);
+    return Map<String, dynamic>.from(data);
+  }
+
+  static final Expando<_CachedMeta> _cache = Expando<_CachedMeta>('NumberMeta');
+
+  static Map<String, dynamic> _decode(String note) {
+    if (note.trim().isEmpty) return <String, dynamic>{};
     try {
       final dynamic decoded = jsonDecode(note);
       if (decoded is Map) {
@@ -204,4 +219,12 @@ class NumberMeta {
       'category': 'dial_task',
     });
   }
+}
+
+/// [NumberMeta.raw] 的缓存项：note 原文 + 解析结果
+class _CachedMeta {
+  const _CachedMeta(this.note, this.data);
+
+  final String note;
+  final Map<String, dynamic> data;
 }
