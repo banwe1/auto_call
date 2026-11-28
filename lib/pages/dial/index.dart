@@ -9,15 +9,13 @@ import '../../components/DialStatusBar.dart';
 import '../../components/SwipeActionCard.dart';
 import '../../constants/AppConstants.dart';
 import '../../services/BatchService.dart';
-import '../../services/DialChannel.dart';
 import '../../services/DialStatsStore.dart';
-import '../../utils/CallUtils.dart';
 import '../../viewmodels/BatchProvider.dart';
-import '../../viewmodels/CallStatsProvider.dart';
 import '../../viewmodels/CustomerProvider.dart';
 import '../import/ImportPage.dart';
 import '../report/DailyReportPage.dart';
 import 'BatchDetailPage.dart';
+import 'ManualDialPage.dart';
 import 'DialHistoryPage.dart';
 
 const Color _accent = Color(0xFF3D7CF6);
@@ -270,7 +268,7 @@ class DialPage extends ConsumerWidget {
                 height: 48,
                 child: ElevatedButton(
                   style: style,
-                  onPressed: () => _showManualDial(context, ref),
+                  onPressed: () => _openManualDial(context),
                   child: const Text('手动拨号', style: TextStyle(fontSize: 18)),
                 ),
               ),
@@ -363,121 +361,12 @@ class DialPage extends ConsumerWidget {
     );
   }
 
-  /// 手动拨号（支持选择双卡）
-  void _showManualDial(BuildContext context, WidgetRef ref) {
-    final TextEditingController controller = TextEditingController();
-    int? selectedSubscriptionId;
-
-    showDialog<void>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('手动拨号'),
-          content: FutureBuilder<List<SimInfo>>(
-            future: DialChannel.listSims(),
-            builder: (
-              BuildContext context,
-              AsyncSnapshot<List<SimInfo>> snapshot,
-            ) {
-              final List<SimInfo> sims = snapshot.data ?? const <SimInfo>[];
-              return StatefulBuilder(
-                builder: (BuildContext context, StateSetter setLocalState) {
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      TextField(
-                        controller: controller,
-                        decoration: const InputDecoration(
-                          hintText: AppConstants.HINT_INPUT_PHONE,
-                        ),
-                        keyboardType: TextInputType.phone,
-                      ),
-                      if (sims.isNotEmpty) ...<Widget>[
-                        const SizedBox(height: 12),
-                        Row(
-                          children: <Widget>[
-                            const Text('拨号卡：',
-                                style: TextStyle(fontSize: 13)),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: DropdownButton<int?>(
-                                isExpanded: true,
-                                value: selectedSubscriptionId,
-                                items: <DropdownMenuItem<int?>>[
-                                  const DropdownMenuItem<int?>(
-                                    value: null,
-                                    child: Text('跟随系统'),
-                                  ),
-                                  ...sims.map(
-                                    (SimInfo sim) => DropdownMenuItem<int?>(
-                                      value: sim.subscriptionId,
-                                      child: Text(
-                                        sim.label,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                                onChanged: (int? value) => setLocalState(
-                                  () => selectedSubscriptionId = value,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  );
-                },
-              );
-            },
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('取消'),
-            ),
-            TextButton(
-              onPressed: () async {
-                final String number = controller.text.trim();
-                if (number.isEmpty) return;
-                final int? subId = selectedSubscriptionId;
-                Navigator.pop(dialogContext);
-                ref.read(callStatsProvider.notifier).addDialed();
-                await _dialWithSim(context, number, subId);
-                ref.invalidate(dialStatsProvider);
-              },
-              child: const Text('拨打'),
-            ),
-          ],
-        );
-      },
-    ).whenComplete(controller.dispose);
-  }
-
-  Future<void> _dialWithSim(
-    BuildContext context,
-    String number,
-    int? subscriptionId,
-  ) async {
-    try {
-      bool granted = await DialChannel.hasPermissions();
-      if (!granted) {
-        granted = await DialChannel.requestPermissions();
-      }
-      if (!granted) {
-        if (context.mounted) {
-          CommonToast.show('未授予电话权限，已打开系统拨号盘', context: context);
-        }
-        await CallUtils.makeCall(context, number);
-        return;
-      }
-      await DialChannel.dial(number, subscriptionId: subscriptionId);
-    } catch (e) {
-      if (context.mounted) {
-        CommonToast.error('原生拨号失败，已回退系统拨号：$e', context: context);
-        await CallUtils.makeCall(context, number);
-      }
-    }
+  /// 手动拨号（自绘键盘整页）
+  void _openManualDial(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => const ManualDialPage(),
+      ),
+    );
   }
 }
