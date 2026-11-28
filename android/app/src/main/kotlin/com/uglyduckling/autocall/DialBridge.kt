@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.CallLog
 import android.provider.Settings
 import android.telecom.TelecomManager
 import io.flutter.plugin.common.BinaryMessenger
@@ -123,6 +124,7 @@ class DialBridge(
                 result.success(true)
             }
             "getDialHistory" -> result.success(DialHistory.snapshot(activity))
+            "filterInCallLog" -> filterInCallLog(call, result)
             "clearDialHistory" -> {
                 DialHistory.clear(activity)
                 result.success(DialHistory.snapshot(activity))
@@ -313,6 +315,44 @@ class DialBridge(
             activity.startForegroundService(intent)
         } else {
             activity.startService(intent)
+        }
+    }
+
+    /** 传入号码里，哪些在系统通话记录中出现过（导入「通话记录去重」用） */
+    private fun filterInCallLog(call: MethodCall, result: MethodChannel.Result) {
+        val numbers = call.argument<List<String>>("numbers") ?: emptyList()
+        if (numbers.isEmpty()) {
+            result.success(emptyList<String>())
+            return
+        }
+        if (!SimHelper.hasPermission(activity, Manifest.permission.READ_CALL_LOG)) {
+            result.success(emptyList<String>())
+            return
+        }
+        try {
+            val logged = mutableSetOf<String>()
+            activity.contentResolver.query(
+                CallLog.Calls.CONTENT_URI,
+                arrayOf(CallLog.Calls.NUMBER),
+                null,
+                null,
+                "${CallLog.Calls.DATE} DESC"
+            )?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val raw = cursor.getString(0) ?: continue
+                    val digits = raw.filter { it.isDigit() }
+                    if (digits.length >= 7) {
+                        logged.add(digits.takeLast(11))
+                    }
+                }
+            }
+            val kept = numbers.filter { number ->
+                val digits = number.filter { it.isDigit() }
+                digits.length >= 7 && logged.contains(digits.takeLast(11))
+            }
+            result.success(kept)
+        } catch (e: Exception) {
+            result.error("query_failed", e.message ?: e.toString(), null)
         }
     }
 

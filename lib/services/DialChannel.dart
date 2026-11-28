@@ -334,6 +334,21 @@ class DialChannel {
 
   // ---------- 拨号记录 ----------
 
+  /// 过滤出在系统通话记录里出现过的号码（导入「通话记录去重」用）
+  static Future<List<String>> filterInCallLog(List<String> numbers) async {
+    if (numbers.isEmpty) return <String>[];
+    try {
+      final List<dynamic>? list = await _method.invokeListMethod<dynamic>(
+        'filterInCallLog',
+        <String, dynamic>{'numbers': numbers},
+      );
+      if (list == null) return <String>[];
+      return list.map((dynamic e) => e.toString()).toList();
+    } catch (_) {
+      return <String>[];
+    }
+  }
+
   static Map<String, dynamic> _toDynamicMap(Map<dynamic, dynamic>? map) {
     if (map == null) return <String, dynamic>{};
     return map.map(
