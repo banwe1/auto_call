@@ -1,0 +1,9 @@
+{
+  // 本项目是 Flutter 工程，Android 部分只由 CI 构建。
+  // 关闭 VS Code 的 Java / Gradle 扩展自动导入，否则它会重写
+  // android/gradle/wrapper/gradle-wrapper.properties（曾把 8.14 升到 9.7.1），
+  // 导致 CI 构建失败。
+  "java.import.gradle.enabled": false,
+  "java.configuration.updateBuildConfiguration": "disabled",
+  "gradle.autoDetect": "off"
+}
