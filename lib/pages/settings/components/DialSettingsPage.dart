@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../components/CommonToast.dart';
 import '../../../components/CustomAppBar.dart';
 import '../../../services/DialChannel.dart';
+import '../../../services/DialHistoryStore.dart';
 import 'PrefixSettingsPage.dart';
 
 const Color _accent = Color(0xFF3D7CF6);
@@ -154,6 +156,11 @@ class _DialSettingsPageState extends ConsumerState<DialSettingsPage> {
                     if (value == null) return;
                     await _save(<String, dynamic>{'remindEvery': value});
                   },
+                ),
+                _row(
+                  title: '拨号记录',
+                  value: '管理',
+                  onTap: _manageHistory,
                 ),
               ],
             ),
@@ -312,5 +319,107 @@ class _DialSettingsPageState extends ConsumerState<DialSettingsPage> {
     controller.dispose();
     if (value == null) return null;
     return value.clamp(min, max);
+  }
+
+  // ---------------- 拨号记录管理 ----------------
+
+  Future<void> _manageHistory() async {
+    final Map<String, dynamic> raw = await DialChannel.getDialHistory();
+    final DialHistoryData data = DialHistoryData.fromMap(raw);
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                '共 ${data.total} 条 · 保留最近 ${data.limit} 条',
+                style: const TextStyle(fontSize: 12, color: _textSub),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.tune),
+              title: const Text('修改保留条数'),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _editHistoryLimit(data.limit);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_sweep_outlined),
+              title: const Text('清空拨号记录'),
+              textColor: const Color(0xFFE5533D),
+              iconColor: const Color(0xFFE5533D),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _clearHistory();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editHistoryLimit(int current) async {
+    final TextEditingController controller =
+        TextEditingController(text: '$current');
+    final String? value = await showDialog<String>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('保留条数'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(hintText: '默认 500，最大 5000'),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    final int? limit = int.tryParse(value ?? '');
+    if (limit == null || limit <= 0) return;
+    await setDialHistoryLimit(limit);
+    if (!mounted) return;
+    CommonToast.success('保留条数已改为 $limit', context: context);
+  }
+
+  Future<void> _clearHistory() async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('清空拨号记录'),
+        content: const Text('确定清空全部拨号记录吗？该操作不可恢复。'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('清空', style: TextStyle(color: Color(0xFFE5533D))),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await clearDialHistory();
+    if (!mounted) return;
+    CommonToast.success('拨号记录已清空', context: context);
   }
 }

@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import '../../components/AutoDialBanner.dart';
 import '../../components/CommonToast.dart';
 import '../../components/CustomAppBar.dart';
-import '../../components/DialStatusBar.dart';
 import '../../components/SwipeActionCard.dart';
 import '../../constants/AppConstants.dart';
 import '../../services/BatchService.dart';
@@ -16,7 +15,6 @@ import '../import/ImportPage.dart';
 import '../report/DailyReportPage.dart';
 import 'BatchDetailPage.dart';
 import 'ManualDialPage.dart';
-import 'DialHistoryPage.dart';
 
 const Color _accent = Color(0xFF3D7CF6);
 const Color _textMain = Color(0xFF333333);
@@ -40,9 +38,9 @@ class DialPage extends ConsumerWidget {
         showLeadingSearch: false,
         showDefaultActions: false,
         leading: AppBarButton(
-          icon: Icons.history,
-          label: '记录',
-          onPressed: () => _openHistory(context),
+          icon: Icons.search,
+          label: '搜索',
+          onPressed: () => _notReady(context, '搜索'),
         ),
         actions: <Widget>[
           AppBarButton(
@@ -61,7 +59,6 @@ class DialPage extends ConsumerWidget {
         children: <Widget>[
           _reportBar(context, today),
           const AutoDialBanner(),
-          const DialStatusBar(),
           Expanded(
             child: batchesAsync.when(
               data: (List<DialBatch> batches) {
@@ -87,14 +84,6 @@ class DialPage extends ConsumerWidget {
 
   void _notReady(BuildContext context, String name) {
     CommonToast.show('$name 暂未实现', context: context);
-  }
-
-  void _openHistory(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (BuildContext context) => const DialHistoryPage(),
-      ),
-    );
   }
 
   Widget _reportBar(BuildContext context, DayStat today) {
