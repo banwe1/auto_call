@@ -60,6 +60,11 @@ class AutoDialService : Service() {
         var connectedCount = 0
             private set
 
+        /** 是否因「拨打个数提醒」而暂停（供 Flutter 弹「继续 / 停止」） */
+        @Volatile
+        var reminder = false
+            private set
+
         @Volatile
         var lastResult: Map<String, Any?>? = null
 
@@ -94,6 +99,7 @@ class AutoDialService : Service() {
             "phone" to currentPhone,
             "status" to statusText,
             "connected" to connectedCount,
+            "reminder" to reminder,
             "lastResult" to lastResult
         )
 
@@ -140,6 +146,7 @@ class AutoDialService : Service() {
             ACTION_START -> startDialing(intent.getStringExtra(EXTRA_QUEUE))
             ACTION_PAUSE -> {
                 paused = true
+                reminder = false
                 statusText = "已暂停"
                 updateNotification()
                 emit()
@@ -147,6 +154,7 @@ class AutoDialService : Service() {
             ACTION_RESUME -> {
                 if (running && paused) {
                     paused = false
+                    reminder = false
                     if (countingDown) tick() else step()
                 }
             }
@@ -177,6 +185,7 @@ class AutoDialService : Service() {
         connectedCount = 0
         running = true
         paused = false
+        reminder = false
         countingDown = false
         waitingForApp = false
         appVisible = true
@@ -318,6 +327,20 @@ class AutoDialService : Service() {
             stopDialing("已停止（未开启自动下一个）")
             return
         }
+
+        // 拨打个数提醒：每拨完 N 个自动暂停，等用户在 App 内确认继续
+        val remindEvery = DialPrefs.getRemindEvery(this)
+        if (remindEvery > 0 && index % remindEvery == 0 && index < queue.size) {
+            paused = true
+            reminder = true
+            countingDown = false
+            countdown = 0
+            statusText = "已拨打 $index 个，等待继续"
+            updateNotification()
+            emit()
+            return
+        }
+
         scheduleNext()
     }
 
@@ -362,6 +385,7 @@ class AutoDialService : Service() {
     private fun stopDialing(message: String) {
         running = false
         paused = false
+        reminder = false
         countdown = 0
         countingDown = false
         handler.removeCallbacksAndMessages(null)

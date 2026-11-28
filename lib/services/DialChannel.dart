@@ -97,6 +97,7 @@ class DialStatusEvent {
     required this.total,
     required this.connected,
     required this.status,
+    this.reminder = false,
     this.phone,
     this.lastResult,
   });
@@ -107,6 +108,9 @@ class DialStatusEvent {
   final int total;
   final int connected;
   final String status;
+
+  /// 因「拨打个数提醒」而暂停（需用户确认继续）
+  final bool reminder;
   final String? phone;
   final DialResult? lastResult;
 
@@ -118,6 +122,7 @@ class DialStatusEvent {
       total: (map['total'] as num?)?.toInt() ?? 0,
       connected: (map['connected'] as num?)?.toInt() ?? 0,
       status: (map['status'] as String?) ?? '',
+      reminder: (map['reminder'] as bool?) ?? false,
       phone: map['phone'] as String?,
       lastResult: DialResult.fromMap(map['lastResult']),
     );

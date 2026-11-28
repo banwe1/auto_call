@@ -311,6 +311,7 @@ class DialBridge(
         call.argument<Int>("intervalSec")?.let { DialPrefs.setIntervalSec(ctx, it) }
         call.argument<Boolean>("autoNext")?.let { DialPrefs.setAutoNext(ctx, it) }
         call.argument<Boolean>("returnToApp")?.let { DialPrefs.setReturnToApp(ctx, it) }
+        call.argument<Int>("remindEvery")?.let { DialPrefs.setRemindEvery(ctx, it) }
         call.argument<List<String>>("prefix1")?.let { DialPrefs.setPrefixes(ctx, 1, it) }
         call.argument<List<String>>("prefix2")?.let { DialPrefs.setPrefixes(ctx, 2, it) }
         result.success(DialPrefs.readAll(ctx))

@@ -22,6 +22,7 @@ class DialRuntime {
     this.phone,
     this.status = '空闲',
     this.connected = 0,
+    this.reminder = false,
   });
 
   final bool running;
@@ -31,6 +32,9 @@ class DialRuntime {
   final String? phone;
   final String status;
   final int connected;
+
+  /// 因「拨打个数提醒」而暂停（需用户在弹窗里确认继续）
+  final bool reminder;
 
   /// 兼容旧字段名
   String? get currentPhone => phone;
@@ -111,6 +115,7 @@ class DialServiceEngine extends StateNotifier<DialRuntime> {
       phone: event.phone,
       status: event.status,
       connected: event.connected,
+      reminder: event.reminder,
     );
 
     final DialResult? result = event.lastResult;

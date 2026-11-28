@@ -53,6 +53,7 @@ class _DialSettingsPageState extends ConsumerState<DialSettingsPage> {
   bool get _autoNext => (_settings['autoNext'] as bool?) ?? true;
   bool get _compat => (_settings['compatMode'] as bool?) ?? false;
   bool get _returnToApp => (_settings['returnToApp'] as bool?) ?? true;
+  int get _remindEvery => (_settings['remindEvery'] as num?)?.toInt() ?? 0;
 
   List<String> get _prefix1 =>
       ((_settings['prefix1'] as List<dynamic>?) ?? const <dynamic>[])
@@ -139,6 +140,20 @@ class _DialSettingsPageState extends ConsumerState<DialSettingsPage> {
                   value: _returnToApp,
                   onChanged: (bool v) =>
                       _save(<String, dynamic>{'returnToApp': v}),
+                ),
+                _row(
+                  title: '拨打提醒',
+                  value: _remindEvery <= 0 ? '关闭' : '每 $_remindEvery 个',
+                  onTap: () async {
+                    final int? value = await _askNumber(
+                      '每拨打 N 个暂停提醒（填 0 关闭）',
+                      _remindEvery,
+                      min: 0,
+                      max: 1000,
+                    );
+                    if (value == null) return;
+                    await _save(<String, dynamic>{'remindEvery': value});
+                  },
                 ),
               ],
             ),
@@ -251,7 +266,12 @@ class _DialSettingsPageState extends ConsumerState<DialSettingsPage> {
     await _save(<String, dynamic>{'mode': index});
   }
 
-  Future<int?> _askNumber(String title, int current) async {
+  Future<int?> _askNumber(
+    String title,
+    int current, {
+    int min = 1,
+    int max = 3600,
+  }) async {
     final TextEditingController controller =
         TextEditingController(text: '$current');
     final int? value = await showDialog<int>(
@@ -291,6 +311,6 @@ class _DialSettingsPageState extends ConsumerState<DialSettingsPage> {
     );
     controller.dispose();
     if (value == null) return null;
-    return value.clamp(1, 3600);
+    return value.clamp(min, max);
   }
 }

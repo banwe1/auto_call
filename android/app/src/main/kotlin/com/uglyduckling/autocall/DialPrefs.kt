@@ -84,6 +84,14 @@ object DialPrefs {
         prefs(context).edit().putBoolean("return_to_app", value).apply()
     }
 
+    /** 拨打个数提醒：每拨完 N 个自动暂停等待确认（0 = 关闭） */
+    fun getRemindEvery(context: Context): Int =
+        prefs(context).getInt("remind_every", 0).coerceIn(0, 1000)
+
+    fun setRemindEvery(context: Context, value: Int) {
+        prefs(context).edit().putInt("remind_every", value.coerceIn(0, 1000)).apply()
+    }
+
     /** 全部设置，供 Flutter 读取 */
     fun readAll(context: Context): Map<String, Any?> = mapOf(
         "mode" to getMode(context),
@@ -92,6 +100,7 @@ object DialPrefs {
         "intervalSec" to getIntervalSec(context),
         "compatMode" to isCompatMode(context),
         "autoNext" to isAutoNext(context),
-        "returnToApp" to isReturnToApp(context)
+        "returnToApp" to isReturnToApp(context),
+        "remindEvery" to getRemindEvery(context)
     )
 }

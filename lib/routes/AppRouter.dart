@@ -11,6 +11,7 @@ import '../pages/login/index.dart';
 import '../pages/profile/index.dart';
 import '../pages/customer/AddCustomer.dart';
 import '../constants/AppConstants.dart';
+import '../services/DialServiceEngine.dart';
 import '../viewmodels/Customer.dart';
 
 /// 路由管理配置
@@ -103,7 +104,7 @@ final router = GoRouter(
 );
 
 /// 带有底部导航栏的 Shell 容器组件
-class ScaffoldWithNavBar extends ConsumerWidget {
+class ScaffoldWithNavBar extends ConsumerStatefulWidget {
   const ScaffoldWithNavBar({
     required this.child,
     super.key,
@@ -112,9 +113,25 @@ class ScaffoldWithNavBar extends ConsumerWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ScaffoldWithNavBar> createState() => _ScaffoldWithNavBarState();
+}
+
+class _ScaffoldWithNavBarState extends ConsumerState<ScaffoldWithNavBar> {
+  /// 提醒弹窗是否正在显示（避免重复弹出）
+  bool _reminderDialogOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
+    // 拨打个数提醒：原生侧每 N 个暂停后，全局弹出「继续 / 停止」
+    ref.listen<DialRuntime>(dialEngineProvider,
+        (DialRuntime? previous, DialRuntime next) {
+      if (next.running && next.reminder && !_reminderDialogOpen) {
+        _showReminderDialog(next);
+      }
+    });
+
     return Scaffold(
-      body: child,
+      body: widget.child,
       bottomNavigationBar: BottomNavigationBar(
         // 获取当前路由路径来决定选中的 Tab
         currentIndex: _calculateSelectedIndex(context),
@@ -139,6 +156,36 @@ class ScaffoldWithNavBar extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// 拨打个数提醒弹窗：继续 / 停止
+  Future<void> _showReminderDialog(DialRuntime runtime) async {
+    _reminderDialogOpen = true;
+    final bool? goOn = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('拨打提醒'),
+        content: Text('已拨打 ${runtime.index} 个号码，是否继续拨打？'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('停止'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('继续'),
+          ),
+        ],
+      ),
+    );
+    _reminderDialogOpen = false;
+    if (!mounted) return;
+    if (goOn == true) {
+      await ref.read(dialEngineProvider.notifier).resume();
+    } else {
+      await ref.read(dialEngineProvider.notifier).stop();
+    }
   }
 
   /// 计算当前应该高亮的导航索引
