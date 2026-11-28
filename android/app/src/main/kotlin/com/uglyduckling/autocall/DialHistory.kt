@@ -21,8 +21,8 @@ object DialHistory {
     private const val KEY_ENTRIES = "entries"
     private const val KEY_LIMIT = "limit"
 
-    /** 默认保留条数（与 base 一致） */
-    const val DEFAULT_LIMIT = 100
+    /** 默认保留条数（用户可在设置里修改，上限 5000） */
+    const val DEFAULT_LIMIT = 500
 
     private const val MAX_LIMIT = 5000
 

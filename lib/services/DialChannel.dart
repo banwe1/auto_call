@@ -89,6 +89,7 @@ class DialResult {
 }
 
 /// 原生拨号服务的运行状态
+/// 原生拨号服务的运行状态
 class DialStatusEvent {
   const DialStatusEvent({
     required this.running,
@@ -98,6 +99,9 @@ class DialStatusEvent {
     required this.connected,
     required this.status,
     this.reminder = false,
+    this.countdown = 0,
+    this.phase = 'idle',
+    this.nextPhone,
     this.phone,
     this.lastResult,
   });
@@ -111,6 +115,15 @@ class DialStatusEvent {
 
   /// 因「拨打个数提醒」而暂停（需用户确认继续）
   final bool reminder;
+
+  /// 倒计时剩余秒数（仅 phase == countdown 时有意义）
+  final int countdown;
+
+  /// 运行阶段：idle / dialing / talking / countdown / waiting_app / paused / reminder
+  final String phase;
+
+  /// 下一个待拨号码（运行页「下一个」预览）
+  final String? nextPhone;
   final String? phone;
   final DialResult? lastResult;
 
@@ -123,6 +136,9 @@ class DialStatusEvent {
       connected: (map['connected'] as num?)?.toInt() ?? 0,
       status: (map['status'] as String?) ?? '',
       reminder: (map['reminder'] as bool?) ?? false,
+      countdown: (map['countdown'] as num?)?.toInt() ?? 0,
+      phase: (map['phase'] as String?) ?? 'idle',
+      nextPhone: map['nextPhone'] as String?,
       phone: map['phone'] as String?,
       lastResult: DialResult.fromMap(map['lastResult']),
     );
@@ -236,6 +252,21 @@ class DialChannel {
 
   static Future<void> resumeAutoDial() async {
     await _method.invokeMethod<bool>('resumeAutoDial');
+  }
+
+  /// 下一个：通话中挂断当前；倒计时中直接跳过下一个号码
+  static Future<void> skipNext() async {
+    await _method.invokeMethod<bool>('skipNext');
+  }
+
+  /// 重拨当前号码
+  static Future<void> redial() async {
+    await _method.invokeMethod<bool>('redial');
+  }
+
+  /// 从队列删除「下一个」号码
+  static Future<void> removeNext() async {
+    await _method.invokeMethod<bool>('removeNext');
   }
 
   static Future<DialStatusEvent> getAutoDialStatus() async {

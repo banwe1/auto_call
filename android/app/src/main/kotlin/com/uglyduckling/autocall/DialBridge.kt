@@ -97,6 +97,18 @@ class DialBridge(
                 sendServiceAction(AutoDialService.ACTION_RESUME, false)
                 result.success(true)
             }
+            "skipNext" -> {
+                sendServiceAction(AutoDialService.ACTION_SKIP_NEXT, false)
+                result.success(true)
+            }
+            "redial" -> {
+                sendServiceAction(AutoDialService.ACTION_REDIAL, false)
+                result.success(true)
+            }
+            "removeNext" -> {
+                sendServiceAction(AutoDialService.ACTION_REMOVE_NEXT, false)
+                result.success(true)
+            }
             "getAutoDialStatus" -> result.success(AutoDialService.statusMap())
             "getDialSettings" -> result.success(DialPrefs.readAll(activity))
             "setDialSettings" -> setDialSettings(call, result)

@@ -53,7 +53,7 @@ class DialRecord {
 /// 拨号记录整体数据
 class DialHistoryData {
   const DialHistoryData({
-    this.limit = 100,
+    this.limit = 500,
     this.total = 0,
     this.records = const <DialRecord>[],
   });
@@ -71,7 +71,7 @@ class DialHistoryData {
         .whereType<DialRecord>()
         .toList();
     return DialHistoryData(
-      limit: (map['limit'] as num?)?.toInt() ?? 100,
+      limit: (map['limit'] as num?)?.toInt() ?? 500,
       total: (map['total'] as num?)?.toInt() ?? records.length,
       records: records,
     );

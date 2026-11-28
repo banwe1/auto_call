@@ -23,6 +23,10 @@ class DialRuntime {
     this.status = '空闲',
     this.connected = 0,
     this.reminder = false,
+    this.countdown = 0,
+    this.phase = 'idle',
+    this.nextPhone,
+    this.lastResult,
   });
 
   final bool running;
@@ -35,6 +39,18 @@ class DialRuntime {
 
   /// 因「拨打个数提醒」而暂停（需用户在弹窗里确认继续）
   final bool reminder;
+
+  /// 倒计时剩余秒数（仅 phase == countdown 时有意义）
+  final int countdown;
+
+  /// 运行阶段：idle / dialing / talking / countdown / waiting_app / paused / reminder
+  final String phase;
+
+  /// 下一个待拨号码（运行页「下一个」预览）
+  final String? nextPhone;
+
+  /// 最近一次通话结果（运行页头部「已接通/未接通」）
+  final DialResult? lastResult;
 
   /// 兼容旧字段名
   String? get currentPhone => phone;
@@ -104,6 +120,12 @@ class DialServiceEngine extends StateNotifier<DialRuntime> {
 
   Future<void> resume() => DialChannel.resumeAutoDial();
 
+  /// 下一个：通话中挂断当前；倒计时中直接跳过下一个号码
+  Future<void> skipNext() => DialChannel.skipNext();
+
+  /// 重拨当前号码
+  Future<void> redial() => DialChannel.redial();
+
   Future<void> stop() => DialChannel.stopAutoDial();
 
   void _onStatus(DialStatusEvent event, {bool updateCounters = true}) {
@@ -116,6 +138,10 @@ class DialServiceEngine extends StateNotifier<DialRuntime> {
       status: event.status,
       connected: event.connected,
       reminder: event.reminder,
+      countdown: event.countdown,
+      phase: event.phase,
+      nextPhone: event.nextPhone,
+      lastResult: event.lastResult,
     );
 
     final DialResult? result = event.lastResult;

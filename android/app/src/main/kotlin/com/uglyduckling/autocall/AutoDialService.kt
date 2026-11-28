@@ -26,6 +26,9 @@ class AutoDialService : Service() {
         const val ACTION_STOP = "com.uglyduckling.autocall.dial.STOP"
         const val ACTION_PAUSE = "com.uglyduckling.autocall.dial.PAUSE"
         const val ACTION_RESUME = "com.uglyduckling.autocall.dial.RESUME"
+        const val ACTION_SKIP_NEXT = "com.uglyduckling.autocall.dial.SKIP_NEXT"
+        const val ACTION_REDIAL = "com.uglyduckling.autocall.dial.REDIAL"
+        const val ACTION_REMOVE_NEXT = "com.uglyduckling.autocall.dial.REMOVE_NEXT"
         const val EXTRA_QUEUE = "queue"
 
         private const val CHANNEL_ID = "auto_dial_service"
@@ -91,17 +94,31 @@ class AutoDialService : Service() {
 
         fun isAppVisible(): Boolean = appVisible
 
-        fun statusMap(): Map<String, Any?> = mapOf(
-            "running" to running,
-            "paused" to paused,
-            "index" to index,
-            "total" to total,
-            "phone" to currentPhone,
-            "status" to statusText,
-            "connected" to connectedCount,
-            "reminder" to reminder,
-            "lastResult" to lastResult
-        )
+        fun statusMap(): Map<String, Any?> {
+            // 服务实例存在时，带上倒计时 / 阶段 / 下一个号码等运行时信息
+            val ref = serviceRef
+            if (ref != null) {
+                try {
+                    return ref.buildStatus()
+                } catch (e: Exception) {
+                    // 回落到静态状态
+                }
+            }
+            return mapOf(
+                "running" to running,
+                "paused" to paused,
+                "index" to index,
+                "total" to total,
+                "phone" to currentPhone,
+                "status" to statusText,
+                "connected" to connectedCount,
+                "reminder" to reminder,
+                "countdown" to 0,
+                "phase" to "idle",
+                "nextPhone" to null,
+                "lastResult" to lastResult
+            )
+        }
 
         fun emit() {
             val sink = eventSink ?: return
@@ -117,6 +134,7 @@ class AutoDialService : Service() {
     private val queue = mutableListOf<String>()
     private var callWatcher: CallStateWatcher? = null
     private var sawActive = false
+    private var currentIndex = -1
     private var countdown = 0
     private var countingDown = false
     private var waitingForApp = false
@@ -159,6 +177,9 @@ class AutoDialService : Service() {
                 }
             }
             ACTION_STOP -> stopDialing("已停止")
+            ACTION_SKIP_NEXT -> skipToNext()
+            ACTION_REDIAL -> redialCurrent()
+            ACTION_REMOVE_NEXT -> removeNextPhone()
         }
         return START_NOT_STICKY
     }
@@ -203,6 +224,7 @@ class AutoDialService : Service() {
         }
 
         val phone = queue[index]
+        currentIndex = index
         currentPhone = phone
         statusText = "正在拨打 $phone"
         updateNotification()
@@ -399,6 +421,88 @@ class AutoDialService : Service() {
             // ignore
         }
         stopSelf()
+    }
+
+    /** 完整运行状态（供 Flutter 运行页使用） */
+    private fun buildStatus(): Map<String, Any?> = mapOf(
+        "running" to running,
+        "paused" to paused,
+        "index" to index,
+        "total" to total,
+        "phone" to currentPhone,
+        "status" to statusText,
+        "connected" to connectedCount,
+        "reminder" to reminder,
+        "countdown" to if (countingDown) countdown else 0,
+        "phase" to phaseName(),
+        "nextPhone" to nextPhoneValue(),
+        "lastResult" to lastResult
+    )
+
+    /** 运行阶段：idle / dialing / talking / countdown / waiting_app / paused / reminder */
+    private fun phaseName(): String {
+        if (!running) return "idle"
+        if (reminder) return "reminder"
+        if (paused) return "paused"
+        if (countingDown) return if (waitingForApp) "waiting_app" else "countdown"
+        return if (sawActive) "talking" else "dialing"
+    }
+
+    /** 「下一个」预览号码 */
+    private fun nextPhoneValue(): String? {
+        val nextIndex = if (currentIndex >= 0) currentIndex + 1 else index
+        return queue.getOrNull(nextIndex)
+    }
+
+    /** 取消正在进行的倒计时/通话监听 */
+    private fun resetPendingCall() {
+        handler.removeCallbacksAndMessages(null)
+        countingDown = false
+        countdown = 0
+        callWatcher?.stop()
+        callWatcher = null
+        sawActive = false
+    }
+
+    /** 下一个：通话中先挂断当前；倒计时中直接跳过下一个号码 */
+    private fun skipToNext() {
+        if (!running) return
+        val wasDialing = !countingDown && currentPhone != null
+        if (wasDialing) AutoDialAccessibilityService.requestHangup()
+        resetPendingCall()
+        paused = false
+        reminder = false
+        index += 1
+        updateNotification()
+        emit()
+        step()
+    }
+
+    /** 重拨当前号码 */
+    private fun redialCurrent() {
+        if (!running) return
+        val target = currentIndex
+        if (target !in queue.indices) return
+        val wasDialing = !countingDown && currentPhone != null
+        if (wasDialing) AutoDialAccessibilityService.requestHangup()
+        resetPendingCall()
+        paused = false
+        reminder = false
+        index = target
+        updateNotification()
+        emit()
+        step()
+    }
+
+    /** 删除「下一个」号码 */
+    private fun removeNextPhone() {
+        if (!running) return
+        val nextIndex = if (currentIndex >= 0) currentIndex + 1 else index
+        if (nextIndex !in queue.indices) return
+        queue.removeAt(nextIndex)
+        total = queue.size
+        updateNotification()
+        emit()
     }
 
     override fun onDestroy() {

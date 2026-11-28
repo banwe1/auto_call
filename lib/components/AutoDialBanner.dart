@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../pages/dial/BatchDetailPage.dart';
+import '../pages/dial/DialRunPage.dart';
 import '../services/BatchService.dart';
 import '../services/DialServiceEngine.dart';
 import '../viewmodels/BatchProvider.dart';
@@ -19,6 +19,18 @@ class AutoDialBanner extends ConsumerWidget {
     }
 
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    // 倒计时只在运行页显示，这里只报进度
+    final bool afterCurrent = const <String>{
+      'countdown',
+      'waiting_app',
+      'paused',
+      'reminder',
+    }.contains(runtime.phase);
+    final int displayIndex = runtime.total == 0
+        ? 0
+        : (afterCurrent ? runtime.index : runtime.index + 1)
+            .clamp(0, runtime.total)
+            .toInt();
     return Material(
       color: const Color(0xFFEAF1FE),
       child: InkWell(
@@ -32,7 +44,7 @@ class AutoDialBanner extends ConsumerWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '正在拨号 ${runtime.index + 1}/${runtime.total} · ${runtime.status}',
+                  '正在拨号 $displayIndex/${runtime.total}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 13, color: Color(0xFF333333)),
@@ -71,7 +83,7 @@ class AutoDialBanner extends ConsumerWidget {
     if (!context.mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (BuildContext context) => BatchDetailPage(batch: resolved),
+        builder: (BuildContext context) => DialRunPage(batch: resolved),
       ),
     );
   }
