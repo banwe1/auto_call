@@ -240,6 +240,7 @@ class AutoDialService : Service() {
             if (result.second >= 0) "正在拨打（卡${result.second + 1}）" else "正在拨打"
         updateNotification()
         emit()
+        AssistRuntime.onDialStarted(this)
         waitForCallEnd()
     }
 
@@ -265,6 +266,7 @@ class AutoDialService : Service() {
             when (state) {
                 "offhook", "ringing" -> {
                     sawActive = true
+                    if (state == "offhook") AssistRuntime.onConnected(this)
                     statusText = "通话中 ${currentPhone ?: ""}"
                     updateNotification()
                     emit()
@@ -307,6 +309,7 @@ class AutoDialService : Service() {
         callWatcher?.stop()
         callWatcher = null
         sawActive = false
+        AssistRuntime.onIdle()
 
         val phone = currentPhone ?: ""
         if (connected) connectedCount++
@@ -409,6 +412,7 @@ class AutoDialService : Service() {
         paused = false
         reminder = false
         countdown = 0
+        AssistRuntime.onIdle()
         countingDown = false
         handler.removeCallbacksAndMessages(null)
         callWatcher?.stop()

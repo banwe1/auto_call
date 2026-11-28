@@ -298,6 +298,30 @@ class DialChannel {
     await _method.invokeMethod<Map<dynamic, dynamic>>('setDialSettings', values);
   }
 
+  // ---------- 辅助功能设置 ----------
+
+  static Future<Map<String, dynamic>> getAssistSettings() async {
+    try {
+      final Map<dynamic, dynamic>? map =
+          await _method.invokeMapMethod<dynamic, dynamic>('getAssistSettings');
+      return _toDynamicMap(map);
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
+  static Future<Map<String, dynamic>> setAssistSettings(
+    Map<String, dynamic> values,
+  ) async {
+    try {
+      final Map<dynamic, dynamic>? map = await _method
+          .invokeMapMethod<dynamic, dynamic>('setAssistSettings', values);
+      return _toDynamicMap(map);
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
   // ---------- 每日统计 ----------
 
   static Future<Map<String, dynamic>> getDialStats() async {

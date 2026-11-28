@@ -113,6 +113,11 @@ class DialBridge(
             "getAutoDialStatus" -> result.success(AutoDialService.statusMap())
             "getDialSettings" -> result.success(DialPrefs.readAll(activity))
             "setDialSettings" -> setDialSettings(call, result)
+            "getAssistSettings" -> result.success(AssistPrefs.readAll(activity))
+            "setAssistSettings" -> {
+                setAssistSettings(call)
+                result.success(AssistPrefs.readAll(activity))
+            }
             "getDialStats" -> result.success(DialStats.snapshot(activity))
             "clearDialStats" -> {
                 DialStats.clearExceptToday(activity)
@@ -246,16 +251,22 @@ class DialBridge(
         historyHandler.removeCallbacks(manualStopRunnable)
         manualWatcher?.stop()
         manualWatcher = null
+        AssistRuntime.onDialStarted(activity)
 
         var sawActive = false
         var watcherRef: CallStateWatcher? = null
 
         val watcher = CallStateWatcher(activity.applicationContext) { payload ->
             when (payload["state"] as? String) {
-                "offhook", "ringing" -> sawActive = true
+                "offhook" -> {
+                    if (!sawActive) AssistRuntime.onConnected(activity)
+                    sawActive = true
+                }
+                "ringing" -> sawActive = true
                 "idle" -> {
                     val wasActive = sawActive
                     sawActive = false
+                    AssistRuntime.onIdle()
                     if (wasActive) {
                         val connected = payload["connected"] as? Boolean ?: false
                         val duration = (payload["durationSec"] as? Number)?.toInt() ?: 0
@@ -354,6 +365,19 @@ class DialBridge(
         } catch (e: Exception) {
             result.error("query_failed", e.message ?: e.toString(), null)
         }
+    }
+
+    private fun setAssistSettings(call: MethodCall) {
+        val ctx = activity.applicationContext
+        call.argument<Boolean>("autoSpeaker")?.let { AssistPrefs.setAutoSpeaker(ctx, it) }
+        call.argument<Boolean>("autoRecord")?.let { AssistPrefs.setAutoRecord(ctx, it) }
+        call.argument<Boolean>("hangupUnanswered")?.let {
+            AssistPrefs.setHangupUnanswered(ctx, it)
+        }
+        call.argument<Int>("unansweredSec")?.let { AssistPrefs.setUnansweredSec(ctx, it) }
+        call.argument<Boolean>("hangupAnswered")?.let { AssistPrefs.setHangupAnswered(ctx, it) }
+        call.argument<Int>("answeredSec")?.let { AssistPrefs.setAnsweredSec(ctx, it) }
+        call.argument<Boolean>("callStateSync")?.let { AssistPrefs.setCallStateSync(ctx, it) }
     }
 
     private fun setDialSettings(call: MethodCall, result: MethodChannel.Result) {

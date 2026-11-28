@@ -5,6 +5,7 @@ import '../pages/dial/index.dart';
 import '../pages/customer/index.dart';
 import '../pages/settings/index.dart';
 import '../pages/settings/components/AccessibilityPage.dart';
+import '../pages/settings/components/AssistSettingsPage.dart';
 import '../pages/settings/components/DialSettingsPage.dart';
 import '../pages/settings/components/SmsSettingsPage.dart';
 import '../pages/login/index.dart';
@@ -62,6 +63,12 @@ final router = GoRouter(
       path: '/accessibility',
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const AccessibilityPage(),
+    ),
+    // 辅助功能（扬声器 / 录音 / 自动挂断）
+    GoRoute(
+      path: '/assist',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const AssistSettingsPage(),
     ),
     // 拨号配置
     GoRoute(

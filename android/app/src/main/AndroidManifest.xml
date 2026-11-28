@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <!-- 通话记录（判断接通/未接、通话时长） -->
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
+<uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
+<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <!-- 自动发短信（后续阶段使用） -->
     <uses-permission android:name="android.permission.SEND_SMS" />
     <!-- 兜底：全屏通知拉起界面（Android 14+ 受限，仅作备用） -->

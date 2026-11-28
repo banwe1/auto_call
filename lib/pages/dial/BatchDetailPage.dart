@@ -13,7 +13,7 @@ import '../../viewmodels/BatchProvider.dart';
 import '../../viewmodels/Customer.dart';
 import '../../viewmodels/CustomerProvider.dart';
 import '../report/DailyReportPage.dart';
-import '../settings/components/AccessibilityPage.dart';
+import '../settings/components/AssistSettingsPage.dart';
 import '../settings/components/DialSettingsPage.dart';
 import 'CustomerDetailPage.dart';
 import 'DialRunPage.dart';
@@ -432,7 +432,8 @@ class _BatchDetailPageState extends ConsumerState<BatchDetailPage> {
             _bottomEntry(Icons.flight_takeoff, '辅助', onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (BuildContext context) => const AccessibilityPage(),
+                  builder: (BuildContext context) =>
+                      const AssistSettingsPage(),
                 ),
               );
             }),
