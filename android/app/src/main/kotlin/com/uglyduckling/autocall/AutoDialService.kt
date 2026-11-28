@@ -259,6 +259,18 @@ class AutoDialService : Service() {
         }, 3000L)
     }
 
+    /** 当前活跃批次（Flutter 侧写入 shared_preferences 的 active_batch_id / _name） */
+    private fun activeBatch(): Pair<String, String> {
+        return try {
+            val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            val id = prefs.getString("flutter.active_batch_id", null).orEmpty()
+            val name = prefs.getString("flutter.active_batch_name", null).orEmpty()
+            id to name
+        } catch (e: Exception) {
+            "" to ""
+        }
+    }
+
     private fun onCallEnded(connected: Boolean, durationSec: Int) {
         handler.removeCallbacks(timeoutRunnable)
         callWatcher?.stop()
@@ -273,6 +285,21 @@ class AutoDialService : Service() {
             0
         }
         DialStats.recordCall(this, connected, durationSec, dialSec)
+        // 写入拨号记录（自动连拨来源）
+        val batch = activeBatch()
+        DialHistory.add(
+            this,
+            DialHistory.Entry(
+                number = phone,
+                connected = connected,
+                talkSec = durationSec,
+                dialSec = dialSec,
+                at = System.currentTimeMillis(),
+                batchId = batch.first,
+                batchName = batch.second,
+                source = DialHistory.SOURCE_AUTO
+            )
+        )
         lastResult = mapOf(
             "phone" to phone,
             "connected" to connected,

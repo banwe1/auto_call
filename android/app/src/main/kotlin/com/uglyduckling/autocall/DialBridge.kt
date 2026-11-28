@@ -9,6 +9,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.telecom.TelecomManager
 import io.flutter.plugin.common.BinaryMessenger
@@ -47,6 +49,14 @@ class DialBridge(
 
     private var eventSink: EventChannel.EventSink? = null
     private var pendingPermissionResult: MethodChannel.Result? = null
+
+    /** 手动拨号的通话跟踪（用于写入拨号记录） */
+    private var manualWatcher: CallStateWatcher? = null
+    private val historyHandler = Handler(Looper.getMainLooper())
+    private val manualStopRunnable = Runnable {
+        manualWatcher?.stop()
+        manualWatcher = null
+    }
 
     init {
         methodChannel.setMethodCallHandler(this)
@@ -99,6 +109,18 @@ class DialBridge(
                 // 号码被标记为「客户」时累加当日新客户数
                 DialStats.addNewCustomer(activity, call.argument<Int>("count") ?: 1)
                 result.success(true)
+            }
+            "getDialHistory" -> result.success(DialHistory.snapshot(activity))
+            "clearDialHistory" -> {
+                DialHistory.clear(activity)
+                result.success(DialHistory.snapshot(activity))
+            }
+            "setDialHistoryLimit" -> {
+                DialHistory.setLimit(
+                    activity,
+                    call.argument<Int>("limit") ?: DialHistory.DEFAULT_LIMIT
+                )
+                result.success(DialHistory.snapshot(activity))
             }
             "hangup" -> result.success(AutoDialAccessibilityService.requestHangup())
             "isAccessibilityEnabled" -> result.success(isAccessibilityEnabled())
@@ -183,6 +205,7 @@ class DialBridge(
                 }
                 telecom.placeCall(Uri.fromParts("tel", number, null), extras)
                 DialStats.recordCall(activity, false, 0, 0)
+                trackManualCall(number)
                 result.success(mapOf("ok" to true, "simIndex" to -1))
             } catch (e: Exception) {
                 result.error("dial_failed", e.message ?: e.toString(), null)
@@ -194,10 +217,56 @@ class DialBridge(
         val pair = SimHelper.placeCall(activity, number, DialPrefs.getMode(activity))
         if (pair.first) {
             DialStats.recordCall(activity, false, 0, 0)
+            trackManualCall(number)
             result.success(mapOf("ok" to true, "simIndex" to pair.second))
         } else {
             result.error("dial_failed", "拨号失败", null)
         }
+    }
+
+    /**
+     * 手动拨号：跟踪本次通话，挂断后写入拨号记录（含接通状态与通话时长）。
+     * 10 分钟兜底停止，避免用户取消拨号后监听常驻。
+     */
+    private fun trackManualCall(number: String) {
+        historyHandler.removeCallbacks(manualStopRunnable)
+        manualWatcher?.stop()
+        manualWatcher = null
+
+        var sawActive = false
+        var watcherRef: CallStateWatcher? = null
+
+        val watcher = CallStateWatcher(activity.applicationContext) { payload ->
+            when (payload["state"] as? String) {
+                "offhook", "ringing" -> sawActive = true
+                "idle" -> {
+                    val wasActive = sawActive
+                    sawActive = false
+                    if (wasActive) {
+                        val connected = payload["connected"] as? Boolean ?: false
+                        val duration = (payload["durationSec"] as? Number)?.toInt() ?: 0
+                        DialHistory.add(
+                            activity,
+                            DialHistory.Entry(
+                                number = number,
+                                connected = connected,
+                                talkSec = duration,
+                                dialSec = 0,
+                                at = System.currentTimeMillis(),
+                                source = DialHistory.SOURCE_MANUAL
+                            )
+                        )
+                        watcherRef?.stop()
+                        manualWatcher = null
+                        historyHandler.removeCallbacks(manualStopRunnable)
+                    }
+                }
+            }
+        }
+        watcherRef = watcher
+        manualWatcher = watcher
+        watcher.start()
+        historyHandler.postDelayed(manualStopRunnable, 10 * 60 * 1000L)
     }
 
     private fun startAutoDial(call: MethodCall, result: MethodChannel.Result) {

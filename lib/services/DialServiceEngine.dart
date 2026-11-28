@@ -75,6 +75,8 @@ class DialServiceEngine extends StateNotifier<DialRuntime> {
     _batchCustomers.clear();
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setString('active_batch_id', batch.id);
+    // 原生侧写拨号记录时用于标注批次名
+    await prefs.setString('active_batch_name', batch.name);
     await _loadBatchCustomers(batch.id);
     await DialChannel.startAutoDial(phones);
   }

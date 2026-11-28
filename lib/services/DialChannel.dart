@@ -295,4 +295,48 @@ class DialChannel {
       // 非 Android 平台忽略
     }
   }
+
+  // ---------- 拨号记录 ----------
+
+  static Map<String, dynamic> _toDynamicMap(Map<dynamic, dynamic>? map) {
+    if (map == null) return <String, dynamic>{};
+    return map.map(
+      (dynamic key, dynamic value) =>
+          MapEntry<String, dynamic>(key.toString(), value),
+    );
+  }
+
+  static Future<Map<String, dynamic>> getDialHistory() async {
+    try {
+      final Map<dynamic, dynamic>? map =
+          await _method.invokeMapMethod<dynamic, dynamic>('getDialHistory');
+      return _toDynamicMap(map);
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
+  static Future<Map<String, dynamic>> clearDialHistory() async {
+    try {
+      final Map<dynamic, dynamic>? map =
+          await _method.invokeMapMethod<dynamic, dynamic>('clearDialHistory');
+      return _toDynamicMap(map);
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
+  /// 设置保留条数（写入时自动截断最旧记录）
+  static Future<Map<String, dynamic>> setDialHistoryLimit(int limit) async {
+    try {
+      final Map<dynamic, dynamic>? map =
+          await _method.invokeMapMethod<dynamic, dynamic>(
+        'setDialHistoryLimit',
+        <String, dynamic>{'limit': limit},
+      );
+      return _toDynamicMap(map);
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
 }
