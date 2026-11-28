@@ -5,9 +5,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../viewmodels/BatchProvider.dart';
 import '../viewmodels/CallStatsProvider.dart';
+import '../viewmodels/Customer.dart';
+import '../viewmodels/CustomerProvider.dart';
 import 'BatchService.dart';
 import 'DialChannel.dart';
 import 'DialStatsStore.dart';
+import 'NumberMeta.dart';
 
 /// 拨号运行状态（镜像原生前台服务）
 class DialRuntime {
@@ -47,8 +50,14 @@ class DialServiceEngine extends StateNotifier<DialRuntime> {
   String? _batchId;
   String? _lastHandledPhone;
 
+  /// 当前批次号码缓存：phone -> Customer，拨号结束后回写号码级状态
+  final Map<String, Customer> _batchCustomers = <String, Customer>{};
+
   Future<void> syncNow() async {
     try {
+      // App 重启后仍能从原生侧的活跃批次继续回写号码状态
+      _batchId ??=
+          (await SharedPreferences.getInstance()).getString('active_batch_id');
       final DialStatusEvent event = await DialChannel.getAutoDialStatus();
       _onStatus(event, updateCounters: false);
     } catch (_) {
@@ -63,9 +72,26 @@ class DialServiceEngine extends StateNotifier<DialRuntime> {
     if (phones.isEmpty) return;
     _batchId = batch.id;
     _lastHandledPhone = null;
+    _batchCustomers.clear();
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setString('active_batch_id', batch.id);
+    await _loadBatchCustomers(batch.id);
     await DialChannel.startAutoDial(phones);
+  }
+
+  /// 载入批次号码，用于拨号结束后回写「已拨打 / 是否接通 / 时长 / 时间」
+  Future<void> _loadBatchCustomers(String batchId) async {
+    try {
+      final List<Customer> list =
+          await _ref.read(customerListProvider.notifier).customersOfBatch(batchId);
+      _batchCustomers
+        ..clear()
+        ..addEntries(
+          list.map((Customer e) => MapEntry<String, Customer>(e.phone, e)),
+        );
+    } catch (_) {
+      // 读取失败时跳过回写
+    }
   }
 
   Future<void> pause() => DialChannel.pauseAutoDial();
@@ -90,6 +116,11 @@ class DialServiceEngine extends StateNotifier<DialRuntime> {
     if (_lastHandledPhone == result.phone) return;
     _lastHandledPhone = result.phone;
 
+    unawaited(_applyResult(result));
+  }
+
+  /// 拨号结果落库：批次计数 + 当日统计 + 号码级状态（已拨打/接通/时长/时间）
+  Future<void> _applyResult(DialResult result) async {
     final String? batchId = _batchId;
     if (batchId == null) return;
 
@@ -103,6 +134,23 @@ class DialServiceEngine extends StateNotifier<DialRuntime> {
     stats.addDialed();
     if (result.connected) stats.addConnected();
     _ref.invalidate(dialStatsProvider);
+
+    try {
+      if (_batchCustomers.isEmpty) await _loadBatchCustomers(batchId);
+      final Customer? customer = _batchCustomers[result.phone];
+      if (customer == null) return;
+      NumberMeta.recordDialResult(
+        customer,
+        connected: result.connected,
+        durationSec: result.durationSec,
+        dialedAt: DateTime.now(),
+      );
+      await _ref
+          .read(storageServiceProvider)
+          .updateCustomers(<Customer>[customer]);
+    } catch (_) {
+      // 回写失败不影响拨号流程
+    }
   }
 
   @override

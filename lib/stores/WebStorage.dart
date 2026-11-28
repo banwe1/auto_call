@@ -50,6 +50,14 @@ class StorageService {
     }
   }
 
+  /// 批量更新（拨号结果、情况标记回写等场景，按 id 覆盖）
+  Future<void> updateCustomers(List<Customer> customers) async {
+    if (customers.isEmpty) return;
+    for (final Customer customer in customers) {
+      await saveCustomer(customer);
+    }
+  }
+
   /// 按批次查询号码
   Future<List<Customer>> getCustomersByBatch(String batchId) async {
     final List<Customer> all = await getAllCustomers();

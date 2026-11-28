@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../viewmodels/CustomerProvider.dart';
 import '../../viewmodels/Customer.dart';
+import '../../services/NumberMeta.dart';
 import '../../components/CustomAppBar.dart';
 import '../../components/CustomerTile.dart';
 import '../../components/CommonToast.dart';
@@ -176,7 +177,13 @@ class CustomerPage extends ConsumerWidget {
         Expanded(
           child: customerState.when(
             data: (customers) {
-              final sortedCustomers = [...customers];
+              // 客户列表只显示「客户」：拨打后被标记为客户的号码 + 手工添加的老客户；
+              // 导入的任务号码不会出现在这里（没有联系，怎么会成为客户）
+              final List<Customer> visibleCustomers = customers
+                  .whereType<Customer>()
+                  .where(NumberMeta.isCustomer)
+                  .toList();
+              final sortedCustomers = [...visibleCustomers];
               if (sortMode == CustomerSortMode.latest) {
                 sortedCustomers
                     .sort((a, b) => b.createdAt.compareTo(a.createdAt));

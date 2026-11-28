@@ -95,6 +95,11 @@ class DialBridge(
                 DialStats.clearExceptToday(activity)
                 result.success(DialStats.snapshot(activity))
             }
+            "recordNewCustomer" -> {
+                // 号码被标记为「客户」时累加当日新客户数
+                DialStats.addNewCustomer(activity, call.argument<Int>("count") ?: 1)
+                result.success(true)
+            }
             "hangup" -> result.success(AutoDialAccessibilityService.requestHangup())
             "isAccessibilityEnabled" -> result.success(isAccessibilityEnabled())
             "isAccessibilityConnected" ->

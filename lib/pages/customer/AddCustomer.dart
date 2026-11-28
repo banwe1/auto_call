@@ -5,13 +5,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../constants/AppConstants.dart';
+import '../../services/NumberMeta.dart';
 import '../../viewmodels/Customer.dart';
 import '../../viewmodels/CustomerProvider.dart';
 
 class AddCustomerPage extends ConsumerStatefulWidget {
   final Customer? initialCustomer;
 
-  const AddCustomerPage({super.key, this.initialCustomer});
+  /// 新建客户时预填的电话号码（如从任务详情「标记客户」进入）
+  final String? initialPhone;
+
+  const AddCustomerPage({super.key, this.initialCustomer, this.initialPhone});
 
   @override
   ConsumerState<AddCustomerPage> createState() => _AddCustomerPageState();
@@ -32,7 +36,13 @@ class _AddCustomerPageState extends ConsumerState<AddCustomerPage> {
   void initState() {
     super.initState();
     final customer = widget.initialCustomer;
-    if (customer == null) return;
+    if (customer == null) {
+      final String? phone = widget.initialPhone;
+      if (phone != null && phone.trim().isNotEmpty) {
+        _phoneController.text = phone.trim();
+      }
+      return;
+    }
 
     _nameController.text = customer.name;
     _phoneController.text = customer.phone;
@@ -89,20 +99,22 @@ class _AddCustomerPageState extends ConsumerState<AddCustomerPage> {
     final phone = _phoneController.text.trim();
     final remark = _remarkController.text.trim();
 
-    final extra = <String, dynamic>{
-      'backupPhone': _backupPhone,
-      'remark': remark.isEmpty ? null : remark,
-      'industries': _industries,
-    };
+    // 保留 note 里已有的键（批次归属、拨号状态、情况标记等），只更新客户资料
+    final existing = widget.initialCustomer;
+    final Map<String, dynamic> extra = existing == null
+        ? <String, dynamic>{}
+        : NumberMeta.raw(existing);
+    extra['backupPhone'] = _backupPhone;
+    extra['remark'] = remark.isEmpty ? null : remark;
+    extra['industries'] = _industries;
 
     final customer = Customer()
       ..name = name.isEmpty ? phone : name
       ..phone = phone
       ..tag = _followStatus
       ..rating = _intentionStars
-      ..createdAt = widget.initialCustomer?.createdAt ?? DateTime.now()
+      ..createdAt = existing?.createdAt ?? DateTime.now()
       ..note = jsonEncode(extra);
-    final existing = widget.initialCustomer;
     if (existing != null) {
       customer.id = existing.id;
     }

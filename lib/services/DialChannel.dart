@@ -283,4 +283,16 @@ class DialChannel {
           MapEntry<String, dynamic>(key.toString(), value),
     );
   }
+
+  /// 号码被标记为「客户」时累加当日新客户数（原生侧持久化，报表用）
+  static Future<void> recordNewCustomer({int count = 1}) async {
+    try {
+      await _method.invokeMethod<bool>(
+        'recordNewCustomer',
+        <String, dynamic>{'count': count},
+      );
+    } catch (_) {
+      // 非 Android 平台忽略
+    }
+  }
 }
